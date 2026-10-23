@@ -43,6 +43,8 @@ public final class Enums {
         WRITE_OFF_REQUESTED, APPROVED, REJECTED, MARKED_DUPLICATE
     }
 
+    public enum FeeScheduleStatus { PROPOSED, APPROVED, REJECTED }
+
     public enum OrderStatus { NEW, SHIPPING, DELIVERED, CANCELLED, RETURNED }
 
     public enum Channel { WEBSITE, SHOPEE, TIKTOK }
