@@ -41,7 +41,7 @@ public class ReadOnlyTools {
     @Tool(description = "Số tiền đối tác (GHN, GHTK, SHOPEE, TIKTOK) còn nợ cửa hàng, chia theo tuổi nợ 0-7, 8-30, 31-60 và trên 60 ngày kể từ khi giao hàng.")
     public String getReceivables(@ToolParam(description = "Mã đối tác: GHN, GHTK, SHOPEE hoặc TIKTOK. Bỏ trống để lấy tất cả.", required = false) String source) {
         calls.add("getReceivables(" + (source == null ? "" : "source=" + source) + ")");
-        if (!canSeeMoney()) return "Người dùng không có quyền xem số liệu tiền.";
+        if (!canSeeMoney()) return "Tài khoản của bạn không được xem số liệu tiền, nên mình không trả lời được câu này.";
         List<Rows.AgingRow> rows = reports.aging().stream()
                 .filter(r -> source == null || source.isBlank() || r.source.equalsIgnoreCase(source)).toList();
         List<List<Object>> out = new ArrayList<>();
@@ -81,7 +81,7 @@ public class ReadOnlyTools {
     @Tool(description = "Tổng phí đối tác đã trừ từ đầu tháng đến nay, theo từng nguồn.")
     public String getFees() {
         calls.add("getFees(month=" + YearMonth.from(reports.today()) + ")");
-        if (!canSeeMoney()) return "Người dùng không có quyền xem số liệu tiền.";
+        if (!canSeeMoney()) return "Tài khoản của bạn không được xem số liệu tiền, nên mình không trả lời được câu này.";
         LocalDate to = reports.today();
         List<Rows.DayStat> stats = reports.dayStats(to.withDayOfMonth(1), to, List.of());
         Map<String, Long> by = new LinkedHashMap<>();

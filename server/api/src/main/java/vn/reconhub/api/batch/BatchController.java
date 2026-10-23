@@ -1,7 +1,7 @@
 package vn.reconhub.api.batch;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.jms.core.JmsTemplate;
+import vn.reconhub.core.messaging.JmsOutbox;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,16 +35,16 @@ public class BatchController {
 
     private final BatchQueryService batch;
     private final BatchExplainer explainer;
-    private final JmsTemplate jms;
+    private final JmsOutbox outbox;
     private final CurrentUser current;
     private final ImportFileRepository files;
     private final FileErrorRepository fileErrors;
 
-    public BatchController(BatchQueryService batch, BatchExplainer explainer, JmsTemplate jms, CurrentUser current,
+    public BatchController(BatchQueryService batch, BatchExplainer explainer, JmsOutbox outbox, CurrentUser current,
                            ImportFileRepository files, FileErrorRepository fileErrors) {
         this.batch = batch;
         this.explainer = explainer;
-        this.jms = jms;
+        this.outbox = outbox;
         this.current = current;
         this.files = files;
         this.fileErrors = fileErrors;
@@ -67,14 +67,18 @@ public class BatchController {
         if (v.restartedAs() != null) {
             return ResponseEntity.badRequest().body(new Queued(false, "Lần chạy #" + id + " đã được chạy lại thành #" + v.restartedAs()));
         }
-        jms.convertAndSend(Messages.BATCH_COMMANDS, Messages.BatchCommand.restart(id, current.get().getFullName()));
+        if (!outbox.send(Messages.BATCH_COMMANDS, Messages.BatchCommand.restart(id, current.get().getFullName()))) {
+            return ResponseEntity.status(503).body(new Queued(false, "Hàng đợi lệnh (Artemis) chưa phản hồi; lệnh chạy lại #" + id + " sẽ được gửi khi hàng đợi hoạt động lại"));
+        }
         return ResponseEntity.accepted().body(new Queued(true, "Đã gửi lệnh chạy lại #" + id));
     }
 
     @PostMapping("/batch/jobs/{job}/run")
     public ResponseEntity<Queued> run(@PathVariable String job) {
         if (!RUNNABLE.contains(job)) return ResponseEntity.badRequest().body(new Queued(false, "Job " + job + " không chạy tay được"));
-        jms.convertAndSend(Messages.BATCH_COMMANDS, Messages.BatchCommand.run(job, current.get().getFullName()));
+        if (!outbox.send(Messages.BATCH_COMMANDS, Messages.BatchCommand.run(job, current.get().getFullName()))) {
+            return ResponseEntity.status(503).body(new Queued(false, "Hàng đợi lệnh (Artemis) chưa phản hồi"));
+        }
         return ResponseEntity.accepted().body(new Queued(true, "Đã gửi lệnh chạy " + job));
     }
 

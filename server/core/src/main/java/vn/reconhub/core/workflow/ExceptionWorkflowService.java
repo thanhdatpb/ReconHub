@@ -2,7 +2,6 @@ package vn.reconhub.core.workflow;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.reconhub.core.ai.SuggestionService;
@@ -21,6 +20,7 @@ import vn.reconhub.core.domain.ReconException;
 import vn.reconhub.core.domain.Source;
 import vn.reconhub.core.domain.WriteOff;
 import vn.reconhub.core.matching.MatchingEngine;
+import vn.reconhub.core.messaging.JmsOutbox;
 import vn.reconhub.core.messaging.Messages;
 import vn.reconhub.core.repo.AppUserRepository;
 import vn.reconhub.core.repo.ExceptionRepository;
@@ -53,13 +53,13 @@ public class ExceptionWorkflowService {
     private final AppUserRepository users;
     private final MatchingEngine engine;
     private final SuggestionService suggestions;
-    private final JmsTemplate jms;
+    private final JmsOutbox outbox;
     private final ReconProperties props;
     private final Clock clock;
 
     public ExceptionWorkflowService(ExceptionRepository exceptions, OrderRepository orders, MatchGroupRepository groups,
                                     SourceRepository sources, AppUserRepository users, MatchingEngine engine,
-                                    SuggestionService suggestions, JmsTemplate jms, ReconProperties props, Clock clock) {
+                                    SuggestionService suggestions, JmsOutbox outbox, ReconProperties props, Clock clock) {
         this.exceptions = exceptions;
         this.orders = orders;
         this.groups = groups;
@@ -67,7 +67,7 @@ public class ExceptionWorkflowService {
         this.users = users;
         this.engine = engine;
         this.suggestions = suggestions;
-        this.jms = jms;
+        this.outbox = outbox;
         this.props = props;
         this.clock = clock;
     }
@@ -151,12 +151,8 @@ public class ExceptionWorkflowService {
         String text = note == null || note.isBlank() ? "Đã gửi yêu cầu đối soát cho " + source.getName() : note;
         e.log(at, actor.getFullName(), ActionKind.CLAIM_SENT, text);
         if (notify && source.getPartnerEmail() != null && e.getType() != ExceptionType.UNMATCHED_PAYMENT) {
-            try {
-                jms.convertAndSend(Messages.MAIL_OUTBOX, new Messages.MailMessage(source.getPartnerEmail(),
-                        "[ReconHub] Yêu cầu đối soát " + e.getId(), text + "\n\nNgười gửi: " + actor.getFullName(), e.getId()));
-            } catch (RuntimeException ex) {
-                log.warn("Could not queue claim e-mail for {}: {}", e.getId(), ex.getMessage());
-            }
+            outbox.sendAfterCommit(Messages.MAIL_OUTBOX, new Messages.MailMessage(source.getPartnerEmail(),
+                    "[ReconHub] Yêu cầu đối soát " + e.getId(), text + "\n\nNgười gửi: " + actor.getFullName(), e.getId()));
         }
         return e;
     }

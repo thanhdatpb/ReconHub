@@ -4,8 +4,19 @@ import { getDashboard, type FileArrival } from '../api';
 import { useLoad } from '../state/session';
 import { Card, ErrorNote, Kpi, Loading, Money, PageHeader, Pill, SourceBadge } from '../components/ui';
 import { baseOptions, barStyle, targetLine, tipLabels, useChartTheme, withAlpha } from '../components/charts';
-import { now } from '../state/meta';
-import { SOURCE_LABEL, TYPE_META, fmtDayMonth, fmtLongDate, fmtPct, fmtTime, fmtVndShort } from '../lib/format';
+import { META, now } from '../state/meta';
+import type { JobExecution } from '../data/types';
+import { SOURCE_LABEL, TYPE_META, fmtDayMonth, fmtLongDate, fmtPct, fmtTime, fmtVnd, fmtVndShort } from '../lib/format';
+
+
+/** What a failed run means for the accountants, in one line. */
+const FAILED_JOB_IMPACT: Record<string, (j: JobExecution) => string> = {
+  fileIngestionJob: (j) => `File ${j.params.file ?? ''} chưa được nạp`,
+  matchingJob: () => 'Một phần giao dịch mới chưa được khớp',
+  feeValidationJob: () => 'Phí của các giao dịch mới chưa được kiểm tra',
+  agingAndReportJob: () => 'Email báo cáo công nợ chưa được gửi',
+  archiveAndPurgeJob: () => 'Dọn dữ liệu cũ chưa chạy xong; không ảnh hưởng đối soát',
+};
 
 function Arrival({ a }: { a: FileArrival }) {
   const right =
@@ -82,7 +93,7 @@ export default function Dashboard() {
             <i className="pi pi-shield" aria-hidden />
             <div>
               <strong>{data.pendingApproval} khoản ghi giảm chờ duyệt</strong>
-              <span>Vượt 50.000 ₫, cần Kế toán trưởng duyệt</span>
+              <span>Vượt {fmtVnd(META.writeOffApprovalThreshold)}, cần Kế toán trưởng duyệt</span>
             </div>
           </Link>
         )}
@@ -91,7 +102,7 @@ export default function Dashboard() {
             <i className="pi pi-server" aria-hidden />
             <div>
               <strong>Job {j.job} lỗi lúc {fmtTime(j.startTime)}</strong>
-              <span>Email báo cáo sáng nay chưa được gửi</span>
+              <span>{FAILED_JOB_IMPACT[j.job]?.(j) ?? 'Xem nguyên nhân ở màn Theo dõi batch'}</span>
             </div>
           </Link>
         ))}
@@ -131,7 +142,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
-        <Card title="Tỷ lệ khớp tự động theo ngày" sub="30 ngày gần nhất · từ 15/10 có thêm quy tắc khớp một khoản cho nhiều đơn">
+        <Card title="Tỷ lệ khớp tự động theo ngày" sub="30 ngày gần nhất · đường ngang là mục tiêu 95%">
           <div className="chart-box">
             <Chart type="line" data={lineData} options={lineOptions} plugins={[targetLine(t, 95, 'Mục tiêu 95%')]} style={{ height: '100%' }} />
           </div>

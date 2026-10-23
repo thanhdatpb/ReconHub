@@ -1,0 +1,128 @@
+# ReconHub demo stack. `docker compose up -d --build`, then open http://localhost:8080 (see README).
+name: reconhub
+
+x-db: &db
+  DB_URL: jdbc:postgresql://postgres:5432/reconhub
+  DB_USER: reconhub
+  DB_PASSWORD: ${POSTGRES_PASSWORD:-reconhub}
+
+x-mq: &mq
+  ARTEMIS_URL: tcp://artemis:61616
+  ARTEMIS_USER: artemis
+  ARTEMIS_PASSWORD: ${ARTEMIS_PASSWORD:-artemis}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: reconhub
+      POSTGRES_USER: reconhub
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-reconhub}
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reconhub -d reconhub"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  artemis:
+    image: apache/activemq-artemis:2.42.0-alpine
+    environment:
+      ARTEMIS_USER: artemis
+      ARTEMIS_PASSWORD: ${ARTEMIS_PASSWORD:-artemis}
+      ANONYMOUS_LOGIN: "false"
+      # Artemis blocks producers once the host disk is 90% full; this demo stores almost nothing, so turn that off
+      # and keep the broker's heap small. Read on every start.
+      JAVA_ARGS_APPEND: "-Dbrokerconfig.maxDiskUsage=-1 -Xms128m -Xmx512m"
+    ports:
+      - "${ARTEMIS_CONSOLE_PORT:-8161}:8161"
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "${MAILPIT_PORT:-8025}:8025"
+
+  # Runs once: sample orders, 30 days of partner files and the ground truth for eval_matching.py.
+  datagen:
+    build: tools/datagen
+    command: ["--out", "/data", "--days", "30"]
+    volumes:
+      - data:/data
+    restart: "no"
+
+  batch:
+    build:
+      context: server
+      target: batch
+    environment:
+      <<: [*db, *mq]
+      DATA_DIR: /data
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      DEMO_ENABLED: ${DEMO_ENABLED:-true}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5-5}
+    volumes:
+      - data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      artemis:
+        condition: service_started
+      mailpit:
+        condition: service_started
+      datagen:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  api:
+    build:
+      context: server
+      target: api
+    environment:
+      <<: [*db, *mq]
+      DATA_DIR: /data
+      JWT_SECRET: ${JWT_SECRET:-reconhub-dev-secret-change-me-0123456789abcdef}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5-5}
+    volumes:
+      - data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      artemis:
+        condition: service_started
+    restart: unless-stopped
+
+  web:
+    build: web
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # The shop's old order system; ReconHub reads its oms.orders table.
+  legacy-oms:
+    build: legacy-oms
+    environment:
+      CATALINA_OPTS: >-
+        -Doms.db.url=jdbc:postgresql://postgres:5432/reconhub
+        -Doms.db.user=reconhub
+        -Doms.db.password=${POSTGRES_PASSWORD:-reconhub}
+    ports:
+      - "${OMS_PORT:-8088}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  data:

@@ -30,6 +30,7 @@ public class BatchScheduler {
         pipeline.tryExclusive(() -> {
             int n = pipeline.scanInbox("SFTP");
             if (n > 0) log.info("Loaded {} file(s) from the inbox", n);
+            pipeline.ingestOrphans();
         });
     }
 

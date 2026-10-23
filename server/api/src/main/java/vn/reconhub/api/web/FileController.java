@@ -2,7 +2,7 @@ package vn.reconhub.api.web;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.jms.core.JmsTemplate;
+import vn.reconhub.core.messaging.JmsOutbox;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,17 +41,17 @@ public class FileController {
     private final ViewService views;
     private final FileRegistrar registrar;
     private final SourceRepository sources;
-    private final JmsTemplate jms;
+    private final JmsOutbox outbox;
     private final CurrentUser current;
     private final ReconProperties props;
     private final Clock clock;
 
-    public FileController(ViewService views, FileRegistrar registrar, SourceRepository sources, JmsTemplate jms, CurrentUser current,
+    public FileController(ViewService views, FileRegistrar registrar, SourceRepository sources, JmsOutbox outbox, CurrentUser current,
                           ReconProperties props, Clock clock) {
         this.views = views;
         this.registrar = registrar;
         this.sources = sources;
-        this.jms = jms;
+        this.outbox = outbox;
         this.current = current;
         this.props = props;
         this.clock = clock;
@@ -87,10 +87,14 @@ public class FileController {
             Files.copy(in, tmp);
         }
         FileRegistrar.Registered reg = registrar.register(tmp, source, name, Instant.now(clock), user.getFullName());
+        Views.FileView view = Views.file(reg.file());
         if (!reg.duplicate()) {
-            jms.convertAndSend(Messages.BATCH_COMMANDS, Messages.BatchCommand.ingest(reg.file().getId(), user.getFullName()));
             log.info("{} uploaded {} as file #{}", user.getUsername(), name, reg.file().getId());
+            if (!outbox.send(Messages.BATCH_COMMANDS, Messages.BatchCommand.ingest(reg.file().getId(), user.getFullName()))) {
+                return new Views.FileView(view.id(), view.source(), view.fileName(), view.receivedAt(), view.status(), 0, 0, 0, view.checksum(), null,
+                        "Đã lưu file nhưng hàng đợi lệnh (Artemis) chưa phản hồi; batch sẽ nạp khi hàng đợi hoạt động lại.", view.uploadedBy());
+            }
         }
-        return Views.file(reg.file());
+        return view;
     }
 }

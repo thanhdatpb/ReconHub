@@ -17,5 +17,8 @@ public interface ImportFileRepository extends JpaRepository<ImportFile, Long> {
 
     List<ImportFile> findByStatusIn(List<FileStatus> statuses);
 
+    /** Registered by the API but never handed to a job, e.g. because the broker was down. */
+    List<ImportFile> findByStatusAndJobExecutionIdIsNullAndReceivedAtBefore(FileStatus status, Instant before);
+
     long countBySourceCodeAndBusinessDateGreaterThanEqual(String sourceCode, java.time.LocalDate from);
 }

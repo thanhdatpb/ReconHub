@@ -4,6 +4,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import vn.reconhub.core.domain.AppUser;
 import vn.reconhub.core.report.ReportService;
+import vn.reconhub.core.util.Money;
 import vn.reconhub.core.util.VnText;
 
 import java.util.List;
@@ -57,16 +58,25 @@ public class AssistantService {
         if (q.matches(".*(ghn|ghtk|shopee|tiktok).*") && q.matches(".*(no|con|phai thu|chua tra).*")) {
             String source = q.contains("ghtk") ? "GHTK" : q.contains("shopee") ? "SHOPEE" : q.contains("tiktok") ? "TIKTOK" : "GHN";
             String raw = tools.getReceivables(source);
-            return new Answer(firstSentence("Số tiền " + ReadOnlyTools.LABEL.get(source) + " còn phải trả theo tuổi nợ: ", raw), tools.calls, tools.table, null, "rules");
+            String label = ReadOnlyTools.LABEL.get(source);
+            if (tools.table == null) return new Answer(raw, tools.calls, null, null, "rules"); // no permission to see amounts
+            var row = reports.aging().stream().filter(r -> r.source.equals(source)).findFirst().orElse(null);
+            if (row == null) return new Answer(label + " hiện không còn khoản nào phải trả cho cửa hàng.", tools.calls, tools.table, null, "rules");
+            long total = row.b0 + row.b1 + row.b2 + row.b3;
+            String text = label + " đang còn phải trả " + Money.format(total) + ". Trong đó " + Money.format(row.b0)
+                    + " là tiền dưới 7 ngày, chưa tới kỳ đối soát"
+                    + (row.b2 + row.b3 > 0 ? "; " + Money.format(row.b2 + row.b3) + " đã quá 30 ngày, nên gửi yêu cầu đối soát." : ".");
+            return new Answer(text, tools.calls, tools.table, null, "rules");
         }
         if (q.contains("ty le") && q.contains("khop")) {
             String raw = tools.getMatchRate(7);
             return new Answer("Tỷ lệ khớp tự động 7 ngày qua: " + raw.lines().findFirst().orElse("").replace("Tổng: ", "") + ". Chi tiết theo nguồn ở bảng dưới.", tools.calls, tools.table, null, "rules");
         }
         if (q.contains("phi")) {
-            tools.getFees();
-            long total = tools.chart == null ? 0 : tools.chart.values().stream().mapToLong(Long::longValue).sum();
-            return new Answer("Từ đầu tháng đến nay, tổng phí bị trừ là " + vn.reconhub.core.util.Money.format(total) + ".", tools.calls, null, tools.chart, "rules");
+            String raw = tools.getFees();
+            if (tools.chart == null) return new Answer(raw, tools.calls, null, null, "rules");
+            long total = tools.chart.values().stream().mapToLong(Long::longValue).sum();
+            return new Answer("Từ đầu tháng đến nay, tổng phí bị trừ là " + Money.format(total) + ".", tools.calls, null, tools.chart, "rules");
         }
         if (q.contains("qua han") || q.contains("ngoai le") || q.contains("ton dong")) {
             String raw = tools.getExceptions(true, 5);
@@ -84,7 +94,4 @@ public class AssistantService {
                 + "Thêm ANTHROPIC_API_KEY để hỏi tự do.", tools.calls, null, null, "rules");
     }
 
-    private static String firstSentence(String prefix, String raw) {
-        return prefix + raw.lines().findFirst().orElse("không có số liệu") + ".";
-    }
 }

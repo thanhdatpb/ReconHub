@@ -172,6 +172,17 @@ public class ReconPipeline {
         }
     }
 
+    /** Uploads whose INGEST command never arrived (broker down, API restarted): load them anyway. */
+    public int ingestOrphans() {
+        List<ImportFile> orphans = files.findByStatusAndJobExecutionIdIsNullAndReceivedAtBefore(
+                vn.reconhub.core.domain.Enums.FileStatus.PROCESSING, Instant.now(clock).minusSeconds(60));
+        for (ImportFile f : orphans) {
+            log.info("File #{} {} was registered but never loaded; loading it now", f.getId(), f.getFileName());
+            ingestRegistered(f.getId());
+        }
+        return orphans.size();
+    }
+
     // ---------------------------------------------------------------- jobs
 
     public void matchAndCheck(Instant at, LocalDate runDate, String trigger) {
