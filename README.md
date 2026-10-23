@@ -47,7 +47,7 @@ orders and partner files, and the batch app replays them day by day (about one m
 | http://localhost:8025 | Mailpit: report and claim e-mails | |
 | http://localhost:8161 | Artemis console | `artemis` / `artemis` |
 
-Ports and passwords can be changed in `.env`. `docker compose down -v` removes everything, including the data.
+Ports, passwords and the bank account in VietQR codes (`VIETQR_*`) can be changed in `.env`. `docker compose down -v` removes everything, including the data.
 
 ### Things to try
 
@@ -72,6 +72,10 @@ Ports and passwords can be changed in `.env`. `docker compose down -v` removes e
    was announced). As `ha`, press "Đề xuất cập nhật biểu phí": the editor is filled in (+2.000 ₫ for COD above
    1.500.000 ₫ from the first such day). Send it, sign in as `nam`, approve it on Sources → GHN → Biểu phí:
    `feeRevalidationJob` closes exactly those exceptions ("Theo biểu phí phiên bản 2 …"); other fee differences stay open.
+9. **VietQR on orders**: open a VCB order in the legacy OMS. It shows a VietQR code built locally (EMVCo/NAPAS, no
+   outside service) with the order value and the order code as the transfer description, so the statement line matches
+   on its own. Set `VIETQR_BIN`, `VIETQR_ACCOUNT` and `VIETQR_ACCOUNT_NAME` in `.env` to scan it with a real banking
+   app ([runbook](docs/runbook.md#scan-an-orders-vietqr-code-with-a-banking-app)).
 
 ## AI
 
@@ -138,6 +142,7 @@ All endpoints except login need `Authorization: Bearer <token>`. Errors are `{"m
 | `POST /api/exceptions/assign` | Assign to an accountant |
 | `POST /api/exceptions/{id}/match` · `/write-off` · `/write-off/decision` · `/claim` · `/duplicate` · `/comments` · `/suggestion` | Actions; bodies carry `version` (optimistic locking) |
 | `GET /api/orders?q=` | OMS order search for manual matching |
+| `GET /api/orders/{code}/vietqr` · `/vietqr.png` | VietQR code of a bank-transfer (VCB) order for invoices: payload, account, amount, description, or the PNG (accountants and chief accountant) |
 | `GET /api/files`, `GET /api/files/{id}/errors`, `POST /api/files` (multipart `file`, `source`) | File intake |
 | `GET /api/sources`, `POST /api/sources/{code}/mapping/suggest`, `PUT /api/sources/{code}/mapping` | Column mapping (save: admin or chief accountant) |
 | `GET /api/sources/{code}/fee-schedules`, `POST /api/sources/{code}/fee-schedules` | Fee schedule versions; anyone proposes |

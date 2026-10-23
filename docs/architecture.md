@@ -78,6 +78,71 @@ applies "from the start" (2000-01-01); `FeeScheduleSeedIntegrationTest` compares
 | A repeated difference is suggested as a new tariff (`UPDATE_FEE_RULE`) only when at least 5 payments of one source within 14 days were charged exactly the same amount more, and one fixed amount above an order-value threshold explains all of them while every payment at or below it was charged correctly. The suggestion says the partner may also be wrong and to claim when no change was announced. A percentage overcharge stays `CLAIM` | `FeeRuleInference`, `SuggestionService` |
 | "Đề xuất cập nhật biểu phí" fills a proposal from that rule (version in force + the inferred component, effective date, evidence) without saving it | `GET /api/exceptions/{id}/fee-proposal` |
 
+## VietQR on orders
+
+A bank-transfer order (`pay_via = VCB`) carries a VietQR code with the order value and the order code as the transfer
+description. The customer scans it, so the statement line has the exact amount and the code, and matches `EXACT`
+instead of waiting for `AMOUNT_DATE` or a person (roadmap 2.1). The code is built in the system; no outside service is
+called.
+
+The payload is EMVCo merchant-presented mode: fields of tag, two-digit length, value.
+
+| Tag | Value |
+|---|---|
+| `00` | `01`, payload format |
+| `01` | `12` dynamic (with amount); `11` static |
+| `38` | Beneficiary: `00` NAPAS GUID `A000000727`; `01` = `00` bank BIN (6 digits) + `01` account number; `02` service `QRIBFTTA` (transfer to an account) |
+| `53` | `704`, VND |
+| `54` | Amount in đồng, digits only |
+| `58` | `VN` |
+| `62` | `08`: transfer description, here the order code. Limited to 25 letters, digits or spaces (a conservative choice: banks differ, and diacritics are refused) |
+| `63` | CRC-16/CCITT-FALSE (polynomial 0x1021, initial 0xFFFF) over everything before it, including `6304`, as 4 hex digits |
+
+No merchant name or city (tags 59/60): VietQR transfer codes leave them out, and the banking app shows the account
+holder that the bank returns.
+
+| Rule | Where |
+|---|---|
+| Payload, CRC and PNG | `VietQr` (`server/core` `vn.reconhub.core.vietqr`; the same class in `legacy-oms` `vn.shop.oms.vietqr`, which does not depend on ReconHub) |
+| The two copies may differ only in the package line, and share `vietqr/vectors.csv` | `VietQrTest` in both modules (when the whole repository is checked out), `scripts/check-vietqr-copies.sh` in CI and `verify.sh` |
+| Each image is read back with ZXing's detector; if a symbol fools it (about one order code in ten at level M), the next error-correction level (Q, L, H) is used | `VietQr.png` |
+| Account from `VIETQR_BIN`, `VIETQR_ACCOUNT`, `VIETQR_ACCOUNT_NAME`; sample values by default | `reconhub.vietqr.*`, `QrAccount` (OMS) |
+| Only VCB orders have a code; accountants and the chief accountant fetch it, the admin gets 403 | `OrderQrService`, `OrderQrController` |
+
+Sources the format was checked against:
+
+- EMVCo, [*EMV QR Code Specification for Payment Systems: Merchant-Presented Mode*](https://www.emvco.com/emv-technologies/qr-codes/)
+  (TLV layout, tags 00, 01, 53, 54, 58, 62, 63, CRC).
+- NAPAS, [QR code payment service](https://en.napas.com.vn/qr-code-payment-service-184230612215937838.htm): VietQR is
+  merchant-presented and follows the State Bank's EMVCo-based standard. NAPAS's field-level specification (cited by
+  libraries as "QR Switching" v1.5.2) is not published openly and was not used.
+- Tag 38 layout and three worked payloads (the first three rows of `vectors.csv`):
+  [Tự viết bộ tạo và đọc mã VietQR bằng JavaScript: TLV, CRC16 và 6 lỗi hay gặp](https://viblo.asia/p/tu-viet-bo-tao-va-doc-ma-vietqr-bang-javascript-tlv-crc16-va-6-loi-hay-gap-3RL1BowpVao) (viblo.asia).
+  The other rows were computed with an independent Python implementation.
+- CRC-16/CCITT-FALSE check value `29B1` for "123456789": [CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/16.htm).
+
+The final check is a scan with a real banking app ([runbook](runbook.md#scan-an-orders-vietqr-code-with-a-banking-app)).
+
+### Effect on matching (simulated)
+
+The sample data has no real VietQR payments. The generator's `--qr-rate` (`DATAGEN_QR_RATE`) **assumes** that share
+of Vietcombank customers pay by scanning the code; the numbers below are a simulation with those assumed rates, not
+measurements from real customers. Measured on 23/10/2026: `docker compose down -v`, start with the rate, wait for the
+backfill, run `eval_matching.py`. Same seed (20261022) and date at every rate; rate 0 is the default data CI uses.
+
+| Customers paying by VietQR (assumed) | Lines | Automatic matches | Precision | Automation rate, all sources | Automation rate, Vietcombank |
+|---|---|---|---|---|---|
+| 0 (today) | 5,315 | 5,186 | 100% | 97.66% | 92.50% of 733 |
+| 0.3 | 5,319 | 5,207 | 100% | 97.99% | 94.98% of 737 |
+| 0.6 | 5,330 | 5,236 | 100% | 98.33% | 97.32% of 745 |
+| 0.9 | 5,339 | 5,255 | 100% | 98.52% | 98.81% of 756 |
+
+A QR payer's line has the exact amount and the code, so it is matched `EXACT`: 681 of 687 at 0.9. The other 6 got a
+`DUPLICATE` exception, as plain lines with the code do at rate 0 (6 of 4,928). What the rate removes are the customers
+who forget the code, mistype it, pay two orders at once or pay short. The Vietcombank line count moves a little because
+a QR payer pays each order separately; MoMo moves by one to three lines because the bank lines then draw random numbers
+in a different order. Vietcombank's 89.5% on the Overview is the last 7 days; the table covers all 30 days.
+
 ## Batch jobs
 
 | Job | Steps | Parameters | Trigger |

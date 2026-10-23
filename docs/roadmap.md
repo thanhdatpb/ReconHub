@@ -98,7 +98,7 @@ ngoại lệ (đã có) và thay đổi cấu hình (ánh xạ, biểu phí, ng�
 
 ## Giai đoạn 2: nghiệp vụ sát thực tế Việt Nam (khoảng 2–3 tuần)
 
-### [ ] 2.1 Mã VietQR trên đơn hàng
+### [x] 2.1 Mã VietQR trên đơn hàng
 
 **Mục tiêu:** khách chuyển khoản luôn kèm mã đơn, tăng tỷ lệ khớp Vietcombank.
 
@@ -110,6 +110,10 @@ ngoại lệ (đã có) và thay đổi cấu hình (ánh xạ, biểu phí, ng�
 
 **Xong khi:** quét QR bằng app ngân hàng thật ra đúng tài khoản, số tiền, nội dung (kiểm tra thủ công); unit test cho
 chuỗi và CRC; số liệu trước/sau ghi vào tài liệu.
+
+**Kết quả:** số liệu mô phỏng (tỷ lệ khách dùng QR giả định 0; 0,3; 0,6; 0,9) ở
+[architecture.md](architecture.md#effect-on-matching-simulated): tỷ lệ khớp tự động Vietcombank 92,5% → 98,8% ở 0,9,
+độ chính xác 100% ở mọi mức. Bước quét bằng app ngân hàng thật làm theo [runbook](runbook.md#scan-an-orders-vietqr-code-with-a-banking-app).
 
 ### [ ] 2.2 Nhận giao dịch ngân hàng ngay khi phát sinh (webhook)
 
