@@ -1,2 +1,4 @@
 # Shell scripts run in bash (Git Bash on Windows, Linux in CI): keep LF line endings on every checkout.
 *.sh text eol=lf
+# The VietQR test vectors exist twice (server/core and legacy-oms) and are compared byte for byte.
+**/vietqr/vectors.csv text eol=lf

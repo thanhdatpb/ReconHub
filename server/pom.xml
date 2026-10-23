@@ -27,6 +27,7 @@
     <spring-ai.version>1.1.8</spring-ai.version>
     <mybatis-starter.version>3.0.5</mybatis-starter.version>
     <poi.version>5.5.1</poi.version>
+    <zxing.version>3.5.3</zxing.version>
   </properties>
 
   <dependencyManagement>
@@ -52,6 +53,11 @@
         <groupId>org.apache.poi</groupId>
         <artifactId>poi-ooxml</artifactId>
         <version>${poi.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.google.zxing</groupId>
+        <artifactId>core</artifactId>
+        <version>${zxing.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
