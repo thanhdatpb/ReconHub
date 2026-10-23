@@ -31,6 +31,7 @@ public class ReportController {
             new ScheduleItem("fileIngestionJob", "khi có file", "Quét /inbox mỗi 20 giây và khi có file tải lên"),
             new ScheduleItem("matchingJob", "0 0 1 * * *", "01:00 hằng ngày và ngay sau khi nạp file"),
             new ScheduleItem("feeValidationJob", "0 20 1 * * *", "01:20 hằng ngày và ngay sau khi khớp"),
+            new ScheduleItem("feeRevalidationJob", "khi duyệt biểu phí", "Kiểm tra lại ngoại lệ sai phí đang mở theo phiên bản biểu phí vừa duyệt"),
             new ScheduleItem("agingAndReportJob", "0 0 6 * * *", "06:00 hằng ngày"),
             new ScheduleItem("archiveAndPurgeJob", "0 0 2 * * SUN", "02:00 Chủ nhật"));
 

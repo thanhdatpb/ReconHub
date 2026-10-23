@@ -15,6 +15,7 @@ import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.stereotype.Service;
 import vn.reconhub.batch.housekeeping.HousekeepingSteps;
 import vn.reconhub.batch.ingest.IngestionSteps;
+import vn.reconhub.batch.matching.FeeRevalidationSteps;
 import vn.reconhub.batch.matching.MatchingSteps;
 import vn.reconhub.batch.report.ReportSteps;
 import vn.reconhub.batch.seed.SeedSteps;
@@ -196,6 +197,17 @@ public class ReconPipeline {
 
     public JobExecution feeValidation(Instant at, LocalDate runDate, String trigger) {
         return launch(MatchingSteps.FEE_JOB, runParams(at, runDate, trigger));
+    }
+
+    /** After a fee schedule version is approved: one job instance per version (scheduleId identifies it). */
+    public JobExecution feeRevalidation(long scheduleId, String approvedBy) {
+        Instant now = Instant.now(clock);
+        return launch(FeeRevalidationSteps.JOB, new JobParametersBuilder()
+                .addLong("scheduleId", scheduleId)
+                .addString("runDate", LocalDate.now(clock).toString(), false)
+                .addString("runAt", now.toString(), false)
+                .addString("trigger", "duyệt biểu phí bởi " + approvedBy, false)
+                .toJobParameters());
     }
 
     /** The scheduled report is one job instance per day, so a failed one is restarted rather than run twice. */

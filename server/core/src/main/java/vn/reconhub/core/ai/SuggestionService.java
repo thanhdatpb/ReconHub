@@ -8,6 +8,7 @@ import vn.reconhub.core.domain.Enums.ExceptionType;
 import vn.reconhub.core.domain.Order;
 import vn.reconhub.core.domain.PaymentLine;
 import vn.reconhub.core.domain.ReconException;
+import vn.reconhub.core.fees.FeeRuleInference;
 import vn.reconhub.core.matching.DescriptionParser;
 import vn.reconhub.core.repo.ExceptionRepository;
 import vn.reconhub.core.repo.ImportFileRepository;
@@ -38,13 +39,16 @@ public class SuggestionService {
     private final ExceptionRepository exceptions;
     private final ImportFileRepository files;
     private final AiGateway ai;
+    private final FeeRuleInference feeRules;
     private final Clock clock;
 
-    public SuggestionService(OrderRepository orders, ExceptionRepository exceptions, ImportFileRepository files, AiGateway ai, Clock clock) {
+    public SuggestionService(OrderRepository orders, ExceptionRepository exceptions, ImportFileRepository files, AiGateway ai,
+                             FeeRuleInference feeRules, Clock clock) {
         this.orders = orders;
         this.exceptions = exceptions;
         this.files = files;
         this.ai = ai;
+        this.feeRules = feeRules;
         this.clock = clock;
     }
 
@@ -233,6 +237,15 @@ public class SuggestionService {
         if ("GHN".equals(e.getSourceCode()) && extra == 8_000) {
             evidence.add("Phụ phí vùng xa của GHN là 8.000 ₫/đơn");
             return new AiSuggestion("Phí cao hơn đúng 8.000 ₫, bằng phụ phí vùng xa. Địa chỉ có thể thuộc vùng xa nhưng OMS chưa đánh dấu; nên cập nhật đơn và ghi nhận phí.", 0.82, "UPDATE_FEE_RULE", List.of(), evidence, 0, 0, "rules");
+        }
+        FeeRuleInference.Outcome tariff = feeRules.infer(e);
+        if (tariff.found()) {
+            FeeRuleInference.Inferred t = tariff.inferred();
+            evidence.addAll(t.evidence());
+            return new AiSuggestion("Phí " + e.getSourceCode() + " cao hơn biểu phí đúng " + Money.format(extra) + " ở " + t.cases()
+                    + " giao dịch, khớp với quy tắc " + t.rule() + ". Có thể đối tác đã đổi biểu phí, nhưng cũng có thể đối tác tính sai."
+                    + " Nếu đã có thông báo đổi phí, hãy đề xuất cập nhật biểu phí; nếu chưa có thông báo, nên gửi khiếu nại cho đối tác.",
+                    0.7, "UPDATE_FEE_RULE", List.of(), evidence, 0, 0, "rules");
         }
         if (similar >= 3) {
             evidence.add(similar + " giao dịch " + e.getSourceCode() + " khác trong 10 ngày có cùng mức chênh");

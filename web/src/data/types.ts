@@ -32,6 +32,67 @@ export interface FeeRule {
   effectiveFrom: string;
 }
 
+export type FeeBase = 'COD' | 'ORDER_AMOUNT' | 'LINE_GROSS';
+
+/** remoteArea: only remote orders; above: strictly greater; atMost: less or equal, both on `base`. */
+export interface FeeCondition {
+  remoteArea?: boolean | null;
+  base?: FeeBase | null;
+  above?: number | null;
+  atMost?: number | null;
+}
+
+/** One part of a fee schedule; each part is rounded half-up to the đồng, then the parts are added. */
+export interface FeeComponent {
+  label: string;
+  kind: 'FIXED' | 'PERCENT';
+  amount?: number | null;
+  /** Percent, e.g. 0.5 for 0,5%. */
+  rate?: number | null;
+  base?: FeeBase | null;
+  min?: number | null;
+  when?: FeeCondition | null;
+}
+
+export type FeeScheduleStatus = 'PROPOSED' | 'APPROVED' | 'REJECTED';
+
+/** A version of a source's fee schedule or a proposal for one (versionNo only once approved). */
+export interface FeeSchedule {
+  id: number;
+  source: SourceCode;
+  versionNo?: number;
+  status: FeeScheduleStatus;
+  /** yyyy-MM-dd */
+  effectiveFrom: string;
+  /** Version 1 applies to all earlier payments: shown as "Áp dụng từ đầu". */
+  fromTheStart: boolean;
+  components: FeeComponent[];
+  description: string;
+  note: string;
+  fromException?: string;
+  proposedBy?: string;
+  proposedByName?: string;
+  proposedAt: Date;
+  decidedBy?: string;
+  decidedByName?: string;
+  decidedAt?: Date;
+  decisionNote?: string;
+  version: number;
+}
+
+export interface FeeProposalInput {
+  effectiveFrom: string;
+  components: FeeComponent[];
+  note: string;
+  fromException?: string;
+}
+
+/** A proposal filled in from repeated fee differences, for a person to check; nothing is saved yet. */
+export interface FeeProposalDraft extends FeeProposalInput {
+  source: SourceCode;
+  evidence: string[];
+}
+
 export interface Source {
   code: SourceCode;
   name: string;
@@ -132,7 +193,8 @@ export type ActionKind =
   | 'WRITE_OFF_REQUESTED'
   | 'APPROVED'
   | 'REJECTED'
-  | 'MARKED_DUPLICATE';
+  | 'MARKED_DUPLICATE'
+  | 'FEE_RULE_UPDATED';
 
 export interface ExceptionAction {
   at: Date;
@@ -191,6 +253,9 @@ export interface ReconException {
     expectedFee?: number;
     actualFee?: number;
     feeRule?: string;
+    /** The fee schedule version the expected fee came from. */
+    feeScheduleId?: number;
+    feeScheduleVersion?: number;
     daysSinceDelivery?: number;
   };
   ai: AiSuggestion | null;
@@ -203,6 +268,7 @@ export type JobName =
   | 'fileIngestionJob'
   | 'matchingJob'
   | 'feeValidationJob'
+  | 'feeRevalidationJob'
   | 'agingAndReportJob'
   | 'archiveAndPurgeJob'
   | 'seedOrdersJob';

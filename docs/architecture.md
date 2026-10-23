@@ -26,7 +26,7 @@ lock makes that safe when they start together.
    inbox itself. Files whose command never arrived are swept up by the batch poller after a minute.
 3. `fileIngestionJob` reads the file with the source's mapping into `payment_lines`.
 4. `matchingJob` runs every new line through the matching tiers, raises unpaid orders and attaches suggestions;
-   `feeValidationJob` compares charged fees with the fee rules.
+   `feeValidationJob` compares charged fees with the fee schedule version in force on the payment date.
 5. People work the exception queue. Every action is a method of `ExceptionWorkflowService`, logged in
    `exception_actions` and protected by the exception's `@Version`.
 6. `agingAndReportJob` writes the aging and journal CSVs to `/data/reports` and e-mails them every morning.
@@ -44,7 +44,7 @@ automatic tier needs an identifier or a unique amount, and the exact amount.
 | Amount and date | No code at all, and exactly one unpaid order with that amount in the previous 72 hours | `AMOUNT_DATE` match |
 | Otherwise | | `UNMATCHED_PAYMENT` exception |
 
-After matching: `FEE_DIFF` when the fee differs from the rule (GHN, GHTK, Shopee, TikTok, MoMo), and `UNPAID_ORDER`
+After matching: `FEE_DIFF` when the fee differs from the fee schedule (GHN, GHTK, Shopee, TikTok, MoMo), and `UNPAID_ORDER`
 for orders delivered more than 7 days ago (TikTok 10, it pays weekly) without money. When a late payout arrives and
 matches, the order's open `UNPAID_ORDER` exception is closed automatically.
 
@@ -61,6 +61,23 @@ sample (5,315 lines) precision is 100% and 97.7% of lines are matched without a 
 | The SLA is 48 hours; it is paused while a claim waits for the partner (`IN_REVIEW`) | report SQL, queue sorting |
 | Claim e-mails are sent only after the transaction commits | `JmsOutbox.sendAfterCommit` |
 
+## Fee schedules
+
+Expected fees come from versioned fee schedules (`fee_schedules`, V6), not from code. A version is a list of
+components, each rounded half-up to the đồng and then added (`FeeFormula`): a fixed amount or a percentage of the COD,
+the order value or the transaction, with an optional minimum, applied always, for remote orders, or above / up to a
+threshold. Version 1 of GHN, GHTK, Shopee, TikTok and MoMo reproduces the formulas that used to be hard-coded and
+applies "from the start" (2000-01-01); `FeeScheduleSeedIntegrationTest` compares it with those formulas on 20,000+ orders.
+
+| Rule | Where |
+|---|---|
+| A line's expected fee comes from the approved version with the latest `effective_from` on or before its transaction date (Vietnam time); the higher version wins a tie | `FeeCalculator` |
+| Anyone proposes a version with a reason; a chief accountant or admin approves or rejects it, never their own proposal | `FeeScheduleService` |
+| Approval numbers the version and sends `REVALIDATE_FEES` after commit | `FeeScheduleService.approve` |
+| `feeRevalidationJob` closes an open (`OPEN`, `IN_REVIEW`) `FEE_DIFF` of that source paid on or after the version's date only when the fee charged equals the fee of the version in force on the payment date; it logs `FEE_RULE_UPDATED` "Theo biểu phí phiên bản N…". Pending write-offs and closed exceptions are left alone; matching is not changed | `FeeRevalidation`, `ExceptionWorkflowService.resolveByFeeSchedule` |
+| A repeated difference is suggested as a new tariff (`UPDATE_FEE_RULE`) only when at least 5 payments of one source within 14 days were charged exactly the same amount more, and one fixed amount above an order-value threshold explains all of them while every payment at or below it was charged correctly. The suggestion says the partner may also be wrong and to claim when no change was announced. A percentage overcharge stays `CLAIM` | `FeeRuleInference`, `SuggestionService` |
+| "Đề xuất cập nhật biểu phí" fills a proposal from that rule (version in force + the inferred component, effective date, evidence) without saving it | `GET /api/exceptions/{id}/fee-proposal` |
+
 ## Batch jobs
 
 | Job | Steps | Parameters | Trigger |
@@ -68,6 +85,7 @@ sample (5,315 lines) precision is 100% and 97.7% of lines are matched without a 
 | `fileIngestionJob` | `validateFileStep` → `parseAndStageStep` (chunk 500, skip up to 10% of rows, at least 5) → `finalizeFileStep` | `fileId` | New file |
 | `matchingJob` | `matchLinesStep` (chunk 100) → `detectUnpaidStep` → `aiSuggestStep` | `runDate`, `runAt` | After each load, 01:00 |
 | `feeValidationJob` | `validateFeeStep` → `aiSuggestStep` | `runDate`, `runAt` | After matching, 01:20 |
+| `feeRevalidationJob` | `revalidateFeeStep` | `scheduleId` | A fee schedule version is approved (`REVALIDATE_FEES` over JMS) |
 | `agingAndReportJob` | `agingSnapshotStep` → `journalExportStep` → `emailReportStep` | `asOf` | 06:00 |
 | `archiveAndPurgeJob` | `archiveFilesStep` → `purgeStep` | `runDate` | Sunday 02:00 |
 | `seedOrdersJob` | `loadOrdersStep` (`FlatFileItemReader` → `JdbcBatchItemWriter`) | `file`, `checksum` | Demo start-up |
@@ -93,7 +111,8 @@ warned about on the dashboard (`JobView.needsAction`):
 
 - `POST /api/auth/login` checks the bcrypt password and returns an HS256 JWT (10 hours) with the user id and role.
 - Roles: `ACCOUNTANT`, `APPROVER` (chief accountant), `ADMIN`. Changing a source's column mapping needs `ADMIN` or
-  `APPROVER`; approving write-offs needs `APPROVER`; the assistant gives `ADMIN` no amounts.
+  `APPROVER`; approving write-offs needs `APPROVER`; approving or rejecting a fee schedule needs `APPROVER` or `ADMIN`
+  (not the proposer); the assistant gives `ADMIN` no amounts.
 - The legacy OMS has its own staff accounts (`oms.staff`), as it did before ReconHub.
 
 ## AI

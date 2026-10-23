@@ -14,11 +14,13 @@ import vn.reconhub.core.domain.Enums.ExceptionType;
 import vn.reconhub.core.domain.Enums.LineStatus;
 import vn.reconhub.core.domain.Enums.MatchMethod;
 import vn.reconhub.core.domain.Enums.Role;
+import vn.reconhub.core.domain.FeeSchedule;
 import vn.reconhub.core.domain.Order;
 import vn.reconhub.core.domain.PaymentLine;
 import vn.reconhub.core.domain.ReconException;
 import vn.reconhub.core.domain.Source;
 import vn.reconhub.core.domain.WriteOff;
+import vn.reconhub.core.matching.FeeFormula;
 import vn.reconhub.core.matching.MatchingEngine;
 import vn.reconhub.core.messaging.JmsOutbox;
 import vn.reconhub.core.messaging.Messages;
@@ -164,6 +166,23 @@ public class ExceptionWorkflowService {
         copy.setStatus(LineStatus.DUPLICATE);
         e.close(ExceptionStatus.RESOLVED, at);
         e.log(at, actor.getFullName(), ActionKind.MARKED_DUPLICATE, "Bỏ qua dòng #" + copy.getId() + " (" + copy.getExternalRef() + ")");
+        return e;
+    }
+
+    /**
+     * Closes a fee difference that an approved fee schedule version explains: the fee charged equals the fee of that
+     * version. Only an open one (OPEN or IN_REVIEW) is closed; a closed exception is never reopened.
+     */
+    public ReconException resolveByFeeSchedule(String id, FeeSchedule schedule, long fee, String actor, Instant at) {
+        ReconException e = get(id);
+        if (e.getType() != ExceptionType.FEE_DIFF) throw new WorkflowException(INVALID, "Ngoại lệ " + id + " không phải sai phí");
+        if (!e.getStatus().isOpen()) throw new WorkflowException(CONFLICT, "Ngoại lệ " + id + " không còn mở");
+        String approver = schedule.getDecidedBy() == null ? null
+                : users.findById(schedule.getDecidedBy()).map(AppUser::getFullName).orElse(schedule.getDecidedBy());
+        e.close(ExceptionStatus.RESOLVED, at);
+        e.log(at, actor, ActionKind.FEE_RULE_UPDATED, "Theo biểu phí phiên bản " + schedule.getVersionNo() + " ("
+                + FeeFormula.title(schedule).replaceFirst("^Phiên bản \\d+, ", "") + (approver == null ? "" : ", " + approver + " duyệt")
+                + "): phí đúng " + Money.format(fee) + ", bằng phí thực trừ; tự đóng");
         return e;
     }
 

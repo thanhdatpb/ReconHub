@@ -67,6 +67,11 @@ Ports and passwords can be changed in `.env`. `docker compose down -v` removes e
    description contains the order code (see [docs/runbook.md](docs/runbook.md#upload-a-bank-statement-for-a-new-order)).
    The line is matched automatically and the OMS order page shows "Đã khớp".
 7. **Data assistant**: "GHN còn nợ mình bao nhiêu?", "Có bao nhiêu ngoại lệ quá hạn?". The admin account gets no amounts.
+8. **A partner changes its fee**: since ten days ago GHN charges 2,000 ₫ more on COD above 1,500,000 ₫ without notice,
+   so those payments are `FEE_DIFF` exceptions. Open one: the suggestion is "cập nhật biểu phí" (or claim, if no change
+   was announced). As `ha`, press "Đề xuất cập nhật biểu phí": the editor is filled in (+2.000 ₫ for COD above
+   1.500.000 ₫ from the first such day). Send it, sign in as `nam`, approve it on Sources → GHN → Biểu phí:
+   `feeRevalidationJob` closes exactly those exceptions ("Theo biểu phí phiên bản 2 …"); other fee differences stay open.
 
 ## AI
 
@@ -78,6 +83,7 @@ Without `ANTHROPIC_API_KEY` every AI feature still works on built-in rules; the 
 | Exception suggestion | Candidate orders scored on amount, code similarity, customer name, time | Re-ranks candidates and writes the summary; structured output (`responseEntity`) |
 | Mapping for a new partner file | Header synonyms + sample-value checks | Proposes the mapping with notes for a person to check |
 | Batch failure explanation | Patterns for skip limits, date formats, SMTP, missing files | Cause and steps from the execution metadata |
+| Fee schedule proposal from fee differences | ≥ 5 payments in 14 days charged the same extra, explained by one fixed amount above an order-value threshold; a person reviews it and a chief accountant approves | Not used: the rule is checked against the data |
 | Data assistant | Keyword routing to six read-only tools | Tool calling with the same six read-only tools (`@Tool`), filtered by role |
 
 Guardrails: the LLM never writes to the database or picks a match by itself (a person confirms); customer names and
@@ -134,6 +140,9 @@ All endpoints except login need `Authorization: Bearer <token>`. Errors are `{"m
 | `GET /api/orders?q=` | OMS order search for manual matching |
 | `GET /api/files`, `GET /api/files/{id}/errors`, `POST /api/files` (multipart `file`, `source`) | File intake |
 | `GET /api/sources`, `POST /api/sources/{code}/mapping/suggest`, `PUT /api/sources/{code}/mapping` | Column mapping (save: admin or chief accountant) |
+| `GET /api/sources/{code}/fee-schedules`, `POST /api/sources/{code}/fee-schedules` | Fee schedule versions; anyone proposes |
+| `POST /api/fee-schedules/{id}/approve` · `/reject` | Decide a proposal (admin or chief accountant, not the proposer); approval starts `feeRevalidationJob` |
+| `GET /api/exceptions/{id}/fee-proposal` | A proposal inferred from repeated fee differences, or 400 with the reason |
 | `GET /api/recon/days?from=&to=&source=`, `GET /api/recon/days/{date}/{source}/groups` | Reconciliation results |
 | `GET /api/aging`, `GET /api/journal?month=yyyy-MM` | Receivables aging, journal entries (112/131/641/711/811) |
 | `GET /api/batch/executions`, `POST /api/batch/executions/{id}/restart`, `POST /api/batch/jobs/{job}/run` | Batch monitor and commands; failed runs carry `supersededBy` and `acknowledged` |

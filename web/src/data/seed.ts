@@ -885,6 +885,7 @@ export const BATCH_SCHEDULE: { job: string; cron: string; human: string }[] = [
   { job: 'fileIngestionJob', cron: '0 */15 * * * *', human: '15 phút một lần, quét /inbox' },
   { job: 'matchingJob', cron: '0 0 1 * * *', human: '01:00 hằng ngày và ngay sau khi nạp file' },
   { job: 'feeValidationJob', cron: '0 20 1 * * *', human: '01:20 hằng ngày' },
+  { job: 'feeRevalidationJob', cron: 'khi duyệt biểu phí', human: 'Kiểm tra lại ngoại lệ sai phí đang mở theo phiên bản biểu phí vừa duyệt' },
   { job: 'agingAndReportJob', cron: '0 0 6 * * *', human: '06:00 hằng ngày' },
   { job: 'archiveAndPurgeJob', cron: '0 0 2 * * SUN', human: '02:00 Chủ nhật' },
 ];

@@ -1,6 +1,9 @@
 // HTTP client for the Spring Boot API. Same exports as mock.ts; vite.config.ts picks one with VITE_API_MODE.
 import type {
   BatchExplanation,
+  FeeProposalDraft,
+  FeeProposalInput,
+  FeeSchedule,
   FileErrorRow,
   ImportFile,
   JobExecution,
@@ -114,7 +117,7 @@ export async function currentUser(): Promise<User | null> {
 // ---------------------------------------------------------------- transport
 
 /** Instants arrive as ISO strings and dates as yyyy-MM-dd; both become Date (dates at local midnight). */
-const DATE_KEYS = new Set(['createdAt', 'slaDueAt', 'receivedAt', 'at', 'date', 'txnDate', 'deliveredAt', 'startTime', 'endTime', 'now', 'updatedAt', 'expiresAt']);
+const DATE_KEYS = new Set(['createdAt', 'slaDueAt', 'receivedAt', 'at', 'date', 'txnDate', 'deliveredAt', 'startTime', 'endTime', 'now', 'updatedAt', 'expiresAt', 'proposedAt', 'decidedAt']);
 function revive(key: string, value: unknown) {
   if (typeof value !== 'string' || !DATE_KEYS.has(key)) return value;
   const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -240,6 +243,27 @@ export const suggestMapping = (code: SourceCode) => request<MappingRow[]>('POST'
 export async function saveMapping(code: SourceCode, mapping: MappingRow[]) {
   await mutate('PUT', `/sources/${code}/mapping`, mapping);
 }
+
+// ---------------------------------------------------------------- fee schedules
+
+export const listFeeSchedules = (code: SourceCode) => request<FeeSchedule[]>('GET', `/sources/${code}/fee-schedules`);
+
+/** Anyone may propose; the server records who and when. */
+export const proposeFeeSchedule = (code: SourceCode, input: FeeProposalInput, _actor: User) =>
+  mutate<FeeSchedule>('POST', `/sources/${code}/fee-schedules`, input);
+
+/** Chief accountant or admin, never the proposer; approval starts feeRevalidationJob in the batch app. */
+export async function approveFeeSchedule(id: number, version: number, note: string, _actor: User): Promise<FeeSchedule> {
+  const r = await mutate<FeeSchedule>('POST', `/fee-schedules/${id}/approve`, { version, note });
+  followBackgroundWork();
+  return r;
+}
+
+export const rejectFeeSchedule = (id: number, version: number, note: string, _actor: User) =>
+  mutate<FeeSchedule>('POST', `/fee-schedules/${id}/reject`, { version, note });
+
+/** A proposal filled in from the fee differences like this one; fails with the reason when no simple rule explains them. */
+export const feeProposalFor = (exceptionId: string) => request<FeeProposalDraft>('GET', `/exceptions/${exceptionId}/fee-proposal`);
 
 // ---------------------------------------------------------------- files
 

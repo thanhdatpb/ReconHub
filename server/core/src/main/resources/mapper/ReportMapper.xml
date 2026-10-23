@@ -103,6 +103,28 @@
     where type = 'FEE_DIFF' and created_at &gt;= #{since}
   </select>
 
+  <!--
+    Matched lines of one source whose fee was checked, each with its single order, and how much more than the
+    schedule was charged when the check raised FEE_DIFF (null: charged as the schedule says). Used to tell a partner's
+    new tariff from a partner's mistake.
+  -->
+  <select id="feeCheckedLines" resultType="vn.reconhub.core.report.Rows$FeeCheckedLine">
+    select p.id as line_id, p.txn_at, p.fee, p.amount + p.fee as gross,
+           o.cod_amount as cod, o.amount as order_amount, x.extra, x.exception_id
+    from payment_lines p
+    join match_items mi on mi.group_id = p.match_group_id and mi.order_code is not null
+    join oms.orders o on o.code = mi.order_code
+    left join lateral (
+        select e.id as exception_id, (e.meta->>'actualFee')::bigint - (e.meta->>'expectedFee')::bigint as extra
+        from exception_payments ep join recon_exceptions e on e.id = ep.exception_id
+        where ep.payment_line_id = p.id and e.type = 'FEE_DIFF'
+        order by e.created_at
+        limit 1
+    ) x on true
+    where p.source_code = #{source} and p.fee_checked and p.txn_at &gt;= #{since}
+      and (select count(*) from match_items m2 where m2.group_id = p.match_group_id and m2.order_code is not null) = 1
+  </select>
+
   <select id="matchGroups" resultType="vn.reconhub.core.report.Rows$MatchGroupRow">
     select g.id, g.method, g.confidence,
            (select string_agg(mi.order_code, ',' order by mi.order_code)

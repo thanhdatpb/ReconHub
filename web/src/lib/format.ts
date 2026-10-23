@@ -140,6 +140,7 @@ export const ACTION_LABEL: Record<ActionKind, string> = {
   APPROVED: 'Duyệt',
   REJECTED: 'Từ chối',
   MARKED_DUPLICATE: 'Đánh dấu trùng',
+  FEE_RULE_UPDATED: 'Đóng theo biểu phí mới',
 };
 
 export const FIELD_META: Record<CanonicalField, { label: string; required: boolean }> = {

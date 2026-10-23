@@ -39,7 +39,7 @@ Quy tắc chung cho mọi mục: xem [CLAUDE.md](../CLAUDE.md) (cách build bằ
 **Xong khi:** với dữ liệu mẫu, Tổng quan không còn cảnh báo GHTK_COD_20261021.csv; màn Theo dõi batch vẫn hiện lần
 chạy đó kèm "Đã có file thay thế GHTK_COD_20261021_v2.csv"; test cho cả hai trường hợp.
 
-### [ ] 1.2 Biểu phí lưu trong database, có phiên bản
+### [x] 1.2 Biểu phí lưu trong database, có phiên bản
 
 **Mục tiêu:** khi đối tác đổi phí, kế toán trưởng cập nhật biểu phí trên giao diện thay vì sửa code; các ngoại lệ sai
 phí do biểu phí cũ tự đóng.

@@ -32,4 +32,6 @@ public interface ReportMapper {
                                   @Param("fromTs") Instant fromTs, @Param("toTs") Instant toTs, @Param("zone") String zone);
 
     List<Rows.FileArrivalRow> filesReceivedBetween(@Param("from") Instant from, @Param("to") Instant to);
+
+    List<Rows.FeeCheckedLine> feeCheckedLines(@Param("source") String source, @Param("since") Instant since);
 }

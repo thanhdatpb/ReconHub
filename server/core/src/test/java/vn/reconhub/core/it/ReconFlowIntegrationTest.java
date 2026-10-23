@@ -10,6 +10,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import vn.reconhub.core.domain.AppUser;
 import vn.reconhub.core.domain.Enums.Channel;
+import vn.reconhub.core.domain.Enums.FeeScheduleStatus;
+import vn.reconhub.core.domain.FeeComponent;
+import vn.reconhub.core.domain.FeeSchedule;
 import vn.reconhub.core.domain.Enums.ExceptionStatus;
 import vn.reconhub.core.domain.Enums.ExceptionType;
 import vn.reconhub.core.domain.Enums.FileStatus;
@@ -24,6 +27,7 @@ import vn.reconhub.core.matching.MatchingEngine.Outcome;
 import vn.reconhub.core.matching.PostMatchChecks;
 import vn.reconhub.core.repo.AppUserRepository;
 import vn.reconhub.core.repo.ExceptionRepository;
+import vn.reconhub.core.repo.FeeScheduleRepository;
 import vn.reconhub.core.repo.ImportFileRepository;
 import vn.reconhub.core.repo.OrderRepository;
 import vn.reconhub.core.repo.PaymentLineRepository;
@@ -34,6 +38,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -62,6 +68,7 @@ class ReconFlowIntegrationTest {
     @Autowired ExceptionRepository exceptions;
     @Autowired AppUserRepository users;
     @Autowired TransactionTemplate tx;
+    @Autowired FeeScheduleRepository schedules;
 
     private final Instant now = Instant.parse("2026-10-22T03:00:00Z");
     private final MatchingEngine.Run run = new MatchingEngine.Run(now, LocalDate.ofInstant(now, VN), "test");
@@ -85,6 +92,37 @@ class ReconFlowIntegrationTest {
         assertThat(e.getType()).isEqualTo(ExceptionType.AMOUNT_DIFF);
         assertThat(e.getDiffAmount()).isEqualTo(-30_000);
         assertThat(e.getMeta()).containsEntry("paidAmount", 600_000).containsEntry("expectedAmount", 630_000);
+    }
+
+    @Test
+    void feeIsCheckedAgainstTheScheduleInForceOnThePaymentDate() {
+        // GHN version 2 from 20/10: +2.000 ₫ when COD is above 1.500.000 ₫ (the lines below are paid on 22/10)
+        FeeSchedule v1 = schedules.findByStatus(FeeScheduleStatus.APPROVED).stream()
+                .filter(s -> s.getSourceCode().equals("GHN") && s.getVersionNo() == 1).findFirst().orElseThrow();
+        List<FeeComponent> components = new ArrayList<>(v1.getComponents());
+        components.add(FeeComponent.fixed("Phụ phí COD lớn", 2_000, new FeeComponent.Condition(null, FeeComponent.Base.COD, 1_500_000L, null)));
+        FeeSchedule v2 = new FeeSchedule("GHN", LocalDate.of(2026, 10, 20), components, "test", null, "u1", now);
+        v2.approve(schedules.maxVersionNo("GHN") + 1, "u3", now, null);
+        schedules.save(v2);
+
+        Order big = carrierOrder("GHN", 2_000_000, false);
+        PaymentLine bigLine = line("GHN", big.getTrackingCode(), big.getCode(), big.getTrackingCode(), null, 2_000_000 - 34_000, 34_000);
+        Order small = carrierOrder("GHN", 1_290_000, false);
+        PaymentLine overcharged = line("GHN", small.getTrackingCode(), small.getCode(), small.getTrackingCode(), null, 1_290_000 - 30_450, 30_450);
+        assertThat(match(bigLine)).isEqualTo(Outcome.EXACT);
+        assertThat(match(overcharged)).isEqualTo(Outcome.EXACT);
+
+        tx.execute(s -> checks.validateFees(run));
+
+        Boolean bigLineFlagged = tx.execute(s -> exceptions.findAll().stream()
+                .anyMatch(x -> x.getPayments().stream().anyMatch(p -> p.getId().equals(bigLine.getId()))));
+        assertThat(bigLineFlagged).isFalse();
+        ReconException e = exceptionFor(overcharged);
+        assertThat(e.getType()).isEqualTo(ExceptionType.FEE_DIFF);
+        assertThat(e.getDiffAmount()).isEqualTo(-2_000);
+        assertThat(e.getMeta()).containsEntry("expectedFee", 28_450).containsEntry("actualFee", 30_450)
+                .containsEntry("feeScheduleVersion", v2.getVersionNo());
+        assertThat((String) e.getMeta().get("feeRule")).startsWith("Phiên bản " + v2.getVersionNo() + ", áp dụng từ 20/10/2026: Cước giao 22.000");
     }
 
     @Test

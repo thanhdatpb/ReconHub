@@ -30,6 +30,7 @@ public class BatchCommandListener {
                     case "INGEST" -> pipeline.ingestRegistered(command.fileId());
                     case "RESTART" -> pipeline.restart(command.executionId());
                     case "RUN" -> pipeline.runNow(command.job(), command.requestedBy());
+                    case "REVALIDATE_FEES" -> pipeline.feeRevalidation(Long.parseLong(command.params().get("scheduleId")), command.requestedBy());
                     default -> log.warn("Unknown command {}", command.kind());
                 }
                 return null;

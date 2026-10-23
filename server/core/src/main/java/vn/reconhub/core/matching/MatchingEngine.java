@@ -53,18 +53,16 @@ public class MatchingEngine {
     private final SourceRepository sources;
     private final ExceptionRepository exceptions;
     private final ExceptionFactory exceptionFactory;
-    private final FeeCalculator fees;
     private final ReconProperties props;
 
     public MatchingEngine(OrderRepository orders, PaymentLineRepository lines, MatchGroupRepository groups, SourceRepository sources,
-                          ExceptionRepository exceptions, ExceptionFactory exceptionFactory, FeeCalculator fees, ReconProperties props) {
+                          ExceptionRepository exceptions, ExceptionFactory exceptionFactory, ReconProperties props) {
         this.orders = orders;
         this.lines = lines;
         this.groups = groups;
         this.sources = sources;
         this.exceptions = exceptions;
         this.exceptionFactory = exceptionFactory;
-        this.fees = fees;
         this.props = props;
     }
 
@@ -185,11 +183,6 @@ public class MatchingEngine {
         if (groupId == null) return List.of();
         return groups.findById(groupId).map(g -> orders.findByCodeIn(g.getItems().stream()
                 .map(i -> i.getOrderCode()).filter(c -> c != null).toList())).orElse(List.of());
-    }
-
-    /** Expected fee for a settled line, or -1 when the source has no fee rule. */
-    public long expectedFee(String sourceCode, Order order, PaymentLine line) {
-        return fees.expectedFee(sourceCode, order, line.gross());
     }
 
     public ReconProperties props() {
