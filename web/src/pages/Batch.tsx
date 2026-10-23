@@ -14,7 +14,7 @@ import { META } from '../state/meta';
 import type { BatchStatus, JobExecution, JobName, StepExecution } from '../data/types';
 import { BATCH_STATUS_META, fmtDateTime, fmtDuration, fmtNumber } from '../lib/format';
 
-const JOBS: JobName[] = ['fileIngestionJob', 'matchingJob', 'feeValidationJob', 'agingAndReportJob', 'archiveAndPurgeJob'];
+const JOBS: JobName[] = ['fileIngestionJob', 'matchingJob', 'feeValidationJob', 'feeRevalidationJob', 'agingAndReportJob', 'archiveAndPurgeJob'];
 /** Jobs that can be started by hand; file ingestion starts when a file arrives. */
 const RUNNABLE = ['matchingJob', 'feeValidationJob', 'agingAndReportJob', 'archiveAndPurgeJob'];
 

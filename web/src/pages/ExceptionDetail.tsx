@@ -166,7 +166,7 @@ function Candidate({ c, top, canAct, onPick }: { c: AiCandidate; top: boolean; c
 
 function dotClass(a: ExceptionAction) {
   if (a.kind === 'AI_SUGGESTED') return 'ai';
-  if (a.kind === 'MATCHED' || a.kind === 'APPROVED' || a.kind === 'MARKED_DUPLICATE') return 'done';
+  if (a.kind === 'MATCHED' || a.kind === 'APPROVED' || a.kind === 'MARKED_DUPLICATE' || a.kind === 'FEE_RULE_UPDATED') return 'done';
   if (a.kind === 'WRITE_OFF_REQUESTED' || a.kind === 'REJECTED') return 'warn';
   return '';
 }
@@ -251,7 +251,11 @@ export default function ExceptionDetail() {
       const claim = <Button key="claim" label={`Gửi yêu cầu đối soát cho ${SOURCE_LABEL[e.source]}…`} icon="pi pi-envelope" outlined={!claimFirst} onClick={openClaim} />;
       const wo = <Button key="wo" label="Ghi giảm chênh lệch…" icon="pi pi-minus-circle" outlined={claimFirst} onClick={openWriteOff} />;
       actionButtons.push(...(claimFirst ? [claim, wo] : [wo, claim]));
-      if (rec === 'UPDATE_FEE_RULE') actionButtons.push(<Button key="fee" label="Mở biểu phí của nguồn này" icon="pi pi-sliders-h" text onClick={() => nav(`/sources?code=${e.source}&tab=fees`)} />);
+      if (rec === 'UPDATE_FEE_RULE' && e.type === 'FEE_DIFF') {
+        actionButtons.push(<Button key="fee" label="Đề xuất cập nhật biểu phí…" icon="pi pi-sliders-h" text onClick={() => nav(`/sources?code=${e.source}&tab=fees&proposeFrom=${e.id}`)} />);
+      } else if (rec === 'UPDATE_FEE_RULE') {
+        actionButtons.push(<Button key="fee" label="Mở biểu phí của nguồn này" icon="pi pi-sliders-h" text onClick={() => nav(`/sources?code=${e.source}&tab=fees`)} />);
+      }
     }
     if (e.type === 'DUPLICATE') {
       actionButtons.push(<Button key="dup" label="Đánh dấu dòng thứ hai là trùng" icon="pi pi-copy" onClick={() => setDialog({ kind: 'duplicate' })} />);
@@ -386,7 +390,7 @@ export default function ExceptionDetail() {
               {!open && e.status !== 'WRITE_OFF_PENDING' && (
                 <div className="notice tone-good">
                   <i className="pi pi-check-circle" aria-hidden />
-                  <span>{e.actions.filter((a) => ['MATCHED', 'APPROVED', 'MARKED_DUPLICATE'].includes(a.kind)).slice(-1)[0]?.note ?? 'Đã xử lý'}</span>
+                  <span>{e.actions.filter((a) => ['MATCHED', 'APPROVED', 'MARKED_DUPLICATE', 'FEE_RULE_UPDATED'].includes(a.kind)).slice(-1)[0]?.note ?? 'Đã xử lý'}</span>
                 </div>
               )}
               <p className="small muted" style={{ margin: 0 }}>

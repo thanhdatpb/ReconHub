@@ -8,6 +8,7 @@ import { useLoad, useSession } from '../state/session';
 import { Card, ErrorNote, Loading, PageHeader, Pill } from '../components/ui';
 import type { MappingRow, Source, SourceCode } from '../data/types';
 import { FIELD_META, KIND_LABEL, fmtPct } from '../lib/format';
+import SourceFees from './SourceFees';
 
 const TAB_INDEX: Record<string, number> = { mapping: 0, fees: 1, schedule: 2 };
 
@@ -142,8 +143,16 @@ export default function Sources() {
     const next = new URLSearchParams(params);
     next.set('code', c);
     if (t) next.set('tab', t);
+    next.delete('proposeFrom');
     setParams(next, { replace: true });
   };
+
+  /** "Đề xuất cập nhật biểu phí" from an exception opens its draft once; a reload must not open it again. */
+  const dropProposeFrom = () => setParams((p) => {
+    const next = new URLSearchParams(p);
+    next.delete('proposeFrom');
+    return next;
+  }, { replace: true });
 
   return (
     <>
@@ -177,33 +186,7 @@ export default function Sources() {
               <MappingEditor source={s} onSaved={() => bump((n) => n + 1)} />
             </TabPanel>
             <TabPanel header="Biểu phí">
-              {s.feeRules.length ? (
-                <div className="stack" style={{ gap: 12 }}>
-                  <div className="table-wrap">
-                    <table className="mini-table" style={{ minWidth: 520 }}>
-                      <thead>
-                        <tr>
-                          <th>Khoản phí</th>
-                          <th>Cách tính</th>
-                          <th>Áp dụng từ</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {s.feeRules.map((r) => (
-                          <tr key={r.name}>
-                            <td className="cell-main">{r.name}</td>
-                            <td>{r.formula}</td>
-                            <td className="num">{r.effectiveFrom}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <span className="small muted">feeValidationJob dùng biểu phí này để tính phí kỳ vọng cho từng giao dịch. Thay đổi biểu phí cần Kế toán trưởng duyệt.</span>
-                </div>
-              ) : (
-                <span className="muted">Chưa khai báo biểu phí cho nguồn này.</span>
-              )}
+              <SourceFees source={s.code} proposeFrom={params.get('proposeFrom')} onDraftOpened={dropProposeFrom} />
             </TabPanel>
             <TabPanel header="Lịch nhận file">
               <dl className="props">

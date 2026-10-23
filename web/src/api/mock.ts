@@ -25,6 +25,10 @@ import {
 import type {
   BatchExplanation,
   ExceptionType,
+  FeeComponent,
+  FeeProposalDraft,
+  FeeProposalInput,
+  FeeSchedule,
   ImportFile,
   JobExecution,
   MappingRow,
@@ -35,6 +39,7 @@ import type {
 } from '../data/types';
 import { SOURCE_LABEL, fmtDate, fmtTime, fmtVnd, fmtPct, fmtVndShort } from '../lib/format';
 import { needsAction } from '../lib/batch';
+import { describe as describeFees, feeOf, inForce } from '../lib/fees';
 import type { Meta } from '../state/meta';
 
 export const MODE = 'mock' as const;
@@ -347,6 +352,169 @@ export async function saveMapping(code: SourceCode, mapping: MappingRow[]) {
   const s = SOURCES.find((x) => x.code === code)!;
   s.mapping = mapping.map((m) => ({ ...m }));
   notify();
+}
+
+// ---------------------------------------------------------------- fee schedules
+
+const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const dmy = (iso: string) => iso.split('-').reverse().join('/');
+
+/** Version 1 of every source: the formulas FeeCalculator used before fee schedules (V6__fee_schedules.sql). */
+const SCHEDULES: FeeSchedule[] = ([
+  ['GHN', [
+    { label: 'Cước giao', kind: 'FIXED', amount: 22_000 },
+    { label: 'Phí thu hộ', kind: 'PERCENT', rate: 0.5, base: 'COD', min: 5_000 },
+    { label: 'Phụ phí vùng xa', kind: 'FIXED', amount: 8_000, when: { remoteArea: true } },
+  ]],
+  ['GHTK', [
+    { label: 'Phí giao hàng, đơn đến 900.000 ₫', kind: 'FIXED', amount: 20_000, when: { base: 'ORDER_AMOUNT', atMost: 900_000 } },
+    { label: 'Phí giao hàng, đơn trên 900.000 ₫', kind: 'FIXED', amount: 30_000, when: { base: 'ORDER_AMOUNT', above: 900_000 } },
+  ]],
+  ['SHOPEE', [
+    { label: 'Phí cố định', kind: 'PERCENT', rate: 4, base: 'ORDER_AMOUNT' },
+    { label: 'Phí thanh toán', kind: 'PERCENT', rate: 4.91, base: 'ORDER_AMOUNT' },
+  ]],
+  ['TIKTOK', [{ label: 'Phí giao dịch', kind: 'PERCENT', rate: 5, base: 'ORDER_AMOUNT' }]],
+  ['MOMO', [{ label: 'Phí giao dịch ví', kind: 'PERCENT', rate: 1, base: 'LINE_GROSS' }]],
+] as [SourceCode, FeeComponent[]][]).map(([source, components], i) => ({
+  id: i + 1, source, versionNo: 1, status: 'APPROVED', effectiveFrom: '2000-01-01', fromTheStart: true, components,
+  description: describeFees(components), note: 'Biểu phí ban đầu, chuyển từ công thức trong FeeCalculator',
+  proposedAt: daysAgo(30), decidedAt: daysAgo(30), version: 0,
+}));
+
+export async function listFeeSchedules(code: SourceCode): Promise<FeeSchedule[]> {
+  await wait();
+  return SCHEDULES.filter((s) => s.source === code).sort((a, b) => b.proposedAt.getTime() - a.proposedAt.getTime()).map((s) => ({ ...s }));
+}
+
+export async function proposeFeeSchedule(code: SourceCode, input: FeeProposalInput, actor: User): Promise<FeeSchedule> {
+  await wait(250);
+  if (!input.effectiveFrom) throw new ApiError('Cần chọn ngày bắt đầu áp dụng');
+  if (!input.note.trim()) throw new ApiError('Cần ghi lý do đổi biểu phí, ví dụ thông báo của đối tác');
+  if (!input.components.length) throw new ApiError('Biểu phí cần ít nhất một khoản phí');
+  for (const c of input.components) {
+    if (!c.label.trim()) throw new ApiError('Mỗi khoản phí cần có tên');
+    if (c.kind === 'FIXED' && (c.amount == null || c.amount < 0)) throw new ApiError(`Số tiền của khoản "${c.label}" phải từ 0 ₫`);
+    if (c.kind === 'PERCENT' && (c.rate == null || c.rate < 0 || c.rate > 100)) throw new ApiError(`Tỷ lệ của khoản "${c.label}" phải từ 0 đến 100%`);
+  }
+  const s: FeeSchedule = {
+    id: Math.max(...SCHEDULES.map((x) => x.id)) + 1, source: code, status: 'PROPOSED', effectiveFrom: input.effectiveFrom,
+    fromTheStart: input.effectiveFrom === '2000-01-01', components: input.components.map((c) => ({ ...c })),
+    description: describeFees(input.components), note: input.note.trim(), fromException: input.fromException,
+    proposedBy: actor.id, proposedByName: actor.name, proposedAt: now(), version: 0,
+  };
+  SCHEDULES.push(s);
+  notify();
+  return { ...s };
+}
+
+function decidable(id: number, version: number, actor: User) {
+  const s = SCHEDULES.find((x) => x.id === id);
+  if (!s) throw new ApiError(`Không có đề xuất biểu phí #${id}`);
+  if (actor.role !== 'APPROVER' && actor.role !== 'ADMIN') throw new ApiError('Tài khoản của bạn không có quyền thực hiện thao tác này');
+  if (s.proposedBy === actor.id) throw new ApiError('Người đề xuất không được tự duyệt đề xuất của mình.');
+  if (s.status !== 'PROPOSED') throw new ApiError('Đề xuất này đã được xử lý');
+  if (s.version !== version) throw new ApiError('Đề xuất vừa được người khác cập nhật. Tải lại trang để xem thay đổi mới nhất.');
+  return s;
+}
+
+export async function approveFeeSchedule(id: number, version: number, note: string, actor: User): Promise<FeeSchedule> {
+  await wait(300);
+  const s = decidable(id, version, actor);
+  Object.assign(s, {
+    status: 'APPROVED', versionNo: Math.max(0, ...SCHEDULES.filter((x) => x.source === s.source).map((x) => x.versionNo ?? 0)) + 1,
+    decidedBy: actor.id, decidedByName: actor.name, decidedAt: now(), decisionNote: note.trim() || undefined, version: s.version + 1,
+  });
+  revalidateFees(s);
+  notify();
+  return { ...s };
+}
+
+export async function rejectFeeSchedule(id: number, version: number, note: string, actor: User): Promise<FeeSchedule> {
+  await wait(250);
+  const s = decidable(id, version, actor);
+  if (!note.trim()) throw new ApiError('Cần ghi lý do từ chối');
+  Object.assign(s, { status: 'REJECTED', decidedBy: actor.id, decidedByName: actor.name, decidedAt: now(), decisionNote: note.trim(), version: s.version + 1 });
+  notify();
+  return { ...s };
+}
+
+const feeInput = (e: ReconException) => {
+  const o = e.orders[0];
+  const p = e.payments[0];
+  return { cod: o.codAmount, amount: o.amount, remote: false, gross: p.amount + p.fee };
+};
+
+/**
+ * feeRevalidationJob of the sample data: open fee differences (OPEN, IN_REVIEW) of the source paid on or after the
+ * new version's date are closed only when the fee charged equals the fee of the version in force on that day.
+ */
+function revalidateFees(schedule: FeeSchedule) {
+  const all = SCHEDULES.filter((x) => x.source === schedule.source);
+  const exec = nextExecId();
+  let checked = 0;
+  let closed = 0;
+  for (const e of EXCEPTIONS) {
+    if (e.type !== 'FEE_DIFF' || e.source !== schedule.source || (e.status !== 'OPEN' && e.status !== 'IN_REVIEW')) continue;
+    if (e.orders.length !== 1 || e.payments.length !== 1 || isoDay(e.payments[0].txnDate) < schedule.effectiveFrom) continue;
+    checked++;
+    const version = inForce(all, isoDay(e.payments[0].txnDate));
+    if (!version) continue;
+    const fee = feeOf(version.components, feeInput(e));
+    if (fee !== e.payments[0].fee) continue;
+    e.status = 'RESOLVED';
+    e.version += 1;
+    e.actions.push({
+      at: now(), actor: `feeRevalidationJob #${exec}`, kind: 'FEE_RULE_UPDATED',
+      note: `Theo biểu phí phiên bản ${version.versionNo} (${version.fromTheStart ? 'áp dụng từ đầu' : `áp dụng từ ${dmy(version.effectiveFrom)}`}${version.decidedByName ? `, ${version.decidedByName} duyệt` : ''}): phí đúng ${fmtVnd(fee)}, bằng phí thực trừ; tự đóng`,
+    });
+    closed++;
+  }
+  const at = now();
+  BATCH.unshift({
+    id: exec, job: 'feeRevalidationJob', params: { scheduleId: String(schedule.id) }, status: 'COMPLETED', startTime: at, endTime: new Date(at.getTime() + 900),
+    steps: [{ name: 'revalidateFeeStep', status: 'COMPLETED', read: checked, write: closed, skip: 0, commits: 1, durationMs: 900 }],
+  });
+}
+
+/**
+ * "Đề xuất cập nhật biểu phí" on the sample data. Same rules as FeeRuleInference.java (five same differences of one
+ * source within 14 days, a fixed extra above a rounded threshold), except that the sample data has no correctly
+ * charged lines to check the threshold against.
+ */
+export async function feeProposalFor(exceptionId: string): Promise<FeeProposalDraft> {
+  await wait(400);
+  const e = EXCEPTIONS.find((x) => x.id === exceptionId);
+  if (!e) throw new ApiError(`Không có ngoại lệ ${exceptionId}`);
+  if (e.type !== 'FEE_DIFF') throw new ApiError('Chỉ suy ra biểu phí từ ngoại lệ sai phí');
+  const extraOf = (x: ReconException) => Number(x.meta.actualFee ?? 0) - Number(x.meta.expectedFee ?? 0);
+  const extra = extraOf(e);
+  if (extra <= 0) throw new ApiError('Phí thực trừ không cao hơn biểu phí nên không có khoản phí mới để thêm');
+  if (e.source === 'GHN' && extra === 8_000) {
+    throw new ApiError('Chênh đúng 8.000 ₫ bằng phụ phí vùng xa đã có trong biểu phí: cần đánh dấu vùng xa cho đơn trong OMS, không cần đổi biểu phí');
+  }
+  const since = e.payments[0].txnDate.getTime() - 14 * 86_400_000;
+  const same = EXCEPTIONS.filter((x) => x.type === 'FEE_DIFF' && x.source === e.source && x.payments.length === 1 && x.orders.length === 1
+    && extraOf(x) === extra && x.payments[0].txnDate.getTime() >= since)
+    .sort((a, b) => a.payments[0].txnDate.getTime() - b.payments[0].txnDate.getTime());
+  if (same.length < 5) throw new ApiError(`Mới có ${same.length} giao dịch ${e.source} bị trừ thêm đúng ${fmtVnd(extra)} trong 14 ngày; cần ít nhất 5 để suy ra một quy tắc`);
+  const base = e.source === 'GHN' ? 'COD' : e.source === 'MOMO' ? 'LINE_GROSS' : 'ORDER_AMOUNT';
+  const values = same.map((x) => (base === 'COD' ? x.orders[0].codAmount : base === 'LINE_GROSS' ? feeInput(x).gross : x.orders[0].amount));
+  const minBase = Math.min(...values);
+  const threshold = Math.floor((minBase - 1) / 100_000) * 100_000;
+  const effectiveFrom = isoDay(same[0].payments[0].txnDate);
+  const current = inForce(SCHEDULES.filter((x) => x.source === e.source), effectiveFrom);
+  if (!current) throw new ApiError(`Nguồn ${e.source} chưa có biểu phí đã duyệt`);
+  const label = base === 'COD' ? 'COD' : base === 'LINE_GROSS' ? 'giá trị giao dịch' : 'giá trị đơn';
+  return {
+    source: e.source, effectiveFrom, fromException: e.id,
+    components: [...current.components, { label: `Phụ phí ${label} trên ${fmtVnd(threshold)}`, kind: 'FIXED', amount: extra, when: { base, above: threshold } }],
+    note: `Suy ra từ ${same.length} ngoại lệ sai phí: +${fmtVnd(extra)} cho ${label} trên ${fmtVnd(threshold)} từ ${dmy(effectiveFrom)}. Đối chiếu với thông báo của đối tác trước khi gửi.`,
+    evidence: [
+      `${same.length} giao dịch ${e.source} từ ${dmy(effectiveFrom)} bị trừ thêm đúng ${fmtVnd(extra)}, ${label} từ ${fmtVnd(minBase)} đến ${fmtVnd(Math.max(...values))}`,
+      'Bản mẫu không có các giao dịch đúng phí để kiểm tra ngưỡng; ngưỡng là giá trị nhỏ nhất làm tròn xuống.',
+    ],
+  };
 }
 
 // ---------------------------------------------------------------- files
