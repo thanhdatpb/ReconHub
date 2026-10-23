@@ -93,7 +93,7 @@ function RunDetail({ x }: { x: JobExecution }) {
   return (
     <div>
       {(x.supersededBy || x.acknowledged) && (
-        <div className="stack" style={{ gap: 8, padding: '8px 8px 4px 48px' }}>
+        <div className="stack" style={{ gap: 8, padding: '8px 8px 4px 48px', maxWidth: 760 }}>
           {x.supersededBy && (
             <div className="notice tone-good">
               <i className="pi pi-check-circle" aria-hidden />
