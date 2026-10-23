@@ -58,7 +58,8 @@ services:
   # Runs once: sample orders, 30 days of partner files and the ground truth for eval_matching.py.
   datagen:
     build: tools/datagen
-    command: ["--out", "/data", "--days", "30"]
+    # DATAGEN_QR_RATE simulates customers paying by VietQR (0-1); 0 keeps the data CI measures.
+    command: ["--out", "/data", "--days", "30", "--qr-rate", "${DATAGEN_QR_RATE:-0}"]
     volumes:
       - data:/data
     restart: "no"
