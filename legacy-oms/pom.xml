@@ -15,6 +15,8 @@
     <struts.version>6.12.0</struts.version>
     <mybatis.version>3.5.19</mybatis.version>
     <log4j.version>2.24.3</log4j.version>
+    <zxing.version>3.5.3</zxing.version>
+    <junit.version>5.11.4</junit.version>
   </properties>
 
   <dependencies>
@@ -32,6 +34,18 @@
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-core</artifactId>
       <version>${log4j.version}</version>
+    </dependency>
+    <!-- VietQR images on the order page; the payload is built by vn.shop.oms.vietqr.VietQr. -->
+    <dependency>
+      <groupId>com.google.zxing</groupId>
+      <artifactId>core</artifactId>
+      <version>${zxing.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
     </dependency>
     <!-- Tomcat 9 provides the Servlet 4 / JSP 2.3 APIs; the JDBC driver lives in Tomcat's lib for the JNDI pool. -->
     <dependency>
@@ -57,6 +71,11 @@
   <build>
     <finalName>oms</finalName>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-war-plugin</artifactId>

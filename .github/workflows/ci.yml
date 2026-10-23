@@ -29,6 +29,8 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: maven
+      - name: VietQR copies in server/core and legacy-oms are identical
+        run: bash scripts/check-vietqr-copies.sh
       - run: mvn -B -f legacy-oms/pom.xml package
 
   web:

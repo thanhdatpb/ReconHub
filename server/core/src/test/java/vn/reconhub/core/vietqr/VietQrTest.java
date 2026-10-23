@@ -26,7 +26,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 class VietQrTest {
     private static final String VECTORS = "vietqr/vectors.csv";
     /** The other module's copy, seen from this module's directory when the whole repository is checked out. */
-    private static final Path OTHER_COPY = Path.of("../../legacy-oms/src/test/resources", VECTORS);
+    private static final Path OTHER_MODULE = Path.of("../../legacy-oms");
+    private static final String SOURCE = "src/main/java/vn/reconhub/core/vietqr/VietQr.java";
+    private static final String OTHER_SOURCE = "src/main/java/vn/shop/oms/vietqr/VietQr.java";
 
     @Test
     void crcIsCcittFalse() {
@@ -69,10 +71,17 @@ class VietQrTest {
     }
 
     @Test
-    void vectorsAreTheSameAsTheOtherModule() throws IOException {
-        assumeTrue(Files.exists(OTHER_COPY), "only the repository checkout has both modules");
-        assertArrayEquals(Files.readAllBytes(OTHER_COPY), Files.readAllBytes(Path.of("src/test/resources", VECTORS)),
+    void vectorsAndSourceAreTheSameAsTheOtherModule() throws IOException {
+        assumeTrue(Files.isDirectory(OTHER_MODULE), "only the repository checkout has both modules");
+        assertArrayEquals(Files.readAllBytes(OTHER_MODULE.resolve("src/test/resources").resolve(VECTORS)),
+                Files.readAllBytes(Path.of("src/test/resources", VECTORS)),
                 "server/core and legacy-oms vietqr/vectors.csv differ; keep them identical");
+        assertEquals(withoutPackage(OTHER_MODULE.resolve(OTHER_SOURCE)), withoutPackage(Path.of(SOURCE)),
+                "server/core and legacy-oms VietQr.java differ; keep them identical apart from the package line");
+    }
+
+    private static List<String> withoutPackage(Path source) throws IOException {
+        return Files.readAllLines(source).stream().filter(l -> !l.startsWith("package ")).map(String::stripTrailing).toList();
     }
 
     private static String decode(byte[] png) throws Exception {

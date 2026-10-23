@@ -30,8 +30,9 @@ import java.util.regex.Pattern;
  * the amount in tag 54 and the transfer description in tag 62, sub-tag 08. Tag 63 is a CRC-16/CCITT-FALSE over
  * everything before it, including "6304". Sources are listed in docs/architecture.md (VietQR section).
  *
- * <p>The legacy OMS has its own copy of this class (vn.shop.oms.vietqr.VietQr); both are checked against the same
- * test vectors, so keep them identical apart from the package.
+ * <p>This class exists twice: vn.reconhub.core.vietqr in ReconHub and vn.shop.oms.vietqr in the legacy OMS, which
+ * does not depend on ReconHub. Both run the same tests over the same vectors, and the tests fail when the two
+ * sources differ in anything but the package line.
  */
 public final class VietQr {
     static final String NAPAS_GUID = "A000000727";

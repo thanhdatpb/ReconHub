@@ -22,6 +22,9 @@ for arg in "$@"; do
 done
 [ ${#parts[@]} -eq 0 ] && parts=(server web oms)
 
+# The two VietQR copies (server/core, legacy-oms) must not drift; each Docker build only sees its own copy.
+case " ${parts[*]} " in *" server "* | *" oms "*) bash "$(dirname "$0")/check-vietqr-copies.sh" ;; esac
+
 for part in "${parts[@]}"; do
   echo "== $part"
   case "$part" in
