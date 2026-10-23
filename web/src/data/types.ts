@@ -163,6 +163,7 @@ export interface AiSuggestion {
   evidence: string[];
   latencyMs: number;
   tokens: number;
+  engine?: 'llm' | 'rules';
 }
 
 export interface WriteOffRequest {
@@ -203,7 +204,8 @@ export type JobName =
   | 'matchingJob'
   | 'feeValidationJob'
   | 'agingAndReportJob'
-  | 'archiveAndPurgeJob';
+  | 'archiveAndPurgeJob'
+  | 'seedOrdersJob';
 
 export type BatchStatus = 'STARTED' | 'COMPLETED' | 'FAILED' | 'STOPPED';
 
@@ -234,6 +236,8 @@ export interface BatchExplanation {
   cause: string;
   evidence: string[];
   steps: string[];
+  /** 'llm' when the explanation came from the model, 'rules' for the built-in rules. */
+  engine?: 'llm' | 'rules';
 }
 
 export interface AgingRow {

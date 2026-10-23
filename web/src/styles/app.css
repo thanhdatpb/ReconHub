@@ -1323,3 +1323,63 @@ a.kpi:hover {
 .p-inputtext::placeholder {
   color: var(--muted);
 }
+
+/* ---------------------------------------------------------------- login (HTTP mode) */
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  background: var(--bg);
+}
+.login-card {
+  width: min(380px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 28px 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-sizing: border-box;
+}
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.login-title {
+  font-weight: 700;
+  font-size: 20px;
+}
+.field-label {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+.login-card .p-button {
+  margin-top: 10px;
+}
+.login-card .p-password,
+.login-card .p-password input {
+  width: 100%;
+}
+.login-demo ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+}
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

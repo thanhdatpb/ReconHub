@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:http": "VITE_API_MODE=http vite",
     "build": "tsc --noEmit && vite build",
+    "build:http": "tsc --noEmit && VITE_API_MODE=http vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "artifact": "node scripts/make-artifact.mjs"
@@ -19,6 +21,7 @@
     "react-router-dom": "^7.9.4"
   },
   "devDependencies": {
+    "@types/node": "^22.20.5",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.2.0",

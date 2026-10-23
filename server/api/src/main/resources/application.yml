@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: reconhub-api
+  config:
+    import: classpath:reconhub-core.yml
+  main:
+    banner-mode: off
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
+
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+reconhub:
+  # Signs the login tokens. Override in every real deployment (JWT_SECRET in .env).
+  jwt-secret: ${JWT_SECRET:reconhub-dev-secret-change-me-0123456789abcdef}
+  cors-origins: ${CORS_ORIGINS:http://localhost:5173}

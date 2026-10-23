@@ -1,0 +1,8 @@
+spring:
+  jms:
+    listener:
+      auto-startup: false
+reconhub:
+  demo:
+    enabled: false
+  inbox-poll-ms: 3600000

@@ -42,11 +42,11 @@ function AnswerChart({ chart }: { chart: NonNullable<AssistantAnswer['chart']> }
 
 export default function Assistant() {
   const { user } = useSession();
-  const [msgs, setMsgs] = useState<Msg[]>([
-    { role: 'bot', text: `Chào ${user.name.split(' ').slice(-1)[0]}. Mình trả lời câu hỏi về số liệu đối soát bằng cách gọi các tool chỉ đọc bên phải, theo đúng quyền của bạn. Mình không sửa dữ liệu.` },
-    { role: 'user', text: SAMPLES[0] },
-    { role: 'bot', text: answerNow(SAMPLES[0]).text, answer: answerNow(SAMPLES[0]) },
-  ]);
+  const [msgs, setMsgs] = useState<Msg[]>(() => {
+    const greeting: Msg = { role: 'bot', text: `Chào ${user.name.split(' ').slice(-1)[0]}. Mình trả lời câu hỏi về số liệu đối soát bằng cách gọi các tool chỉ đọc bên phải, theo đúng quyền của bạn. Mình không sửa dữ liệu.` };
+    const first = answerNow(SAMPLES[0]);
+    return first ? [greeting, { role: 'user', text: SAMPLES[0] }, { role: 'bot', text: first.text, answer: first }] : [greeting];
+  });
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);

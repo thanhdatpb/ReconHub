@@ -1,4 +1,4 @@
-import { DEMO_NOW } from '../data/seed';
+import { now as clockNow } from '../state/meta';
 import type {
   ActionKind,
   BatchStatus,
@@ -48,14 +48,14 @@ export function fmtDuration(ms: number) {
 }
 
 /** Relative wording used for SLA: "còn 5 giờ", "quá 1 ngày". */
-export function fmtSla(due: Date, now = DEMO_NOW) {
+export function fmtSla(due: Date, now = clockNow()) {
   const diff = due.getTime() - now.getTime();
   const h = Math.round(Math.abs(diff) / 3_600_000);
   const text = h >= 24 ? `${Math.round(h / 24)} ngày` : h >= 1 ? `${h} giờ` : 'dưới 1 giờ';
   return { overdue: diff < 0, text: diff < 0 ? `Quá ${text}` : `Còn ${text}`, soon: diff >= 0 && diff < 6 * 3_600_000 };
 }
 
-export function fmtAgo(d: Date, now = DEMO_NOW) {
+export function fmtAgo(d: Date, now = clockNow()) {
   const m = Math.round((now.getTime() - d.getTime()) / 60_000);
   if (m < 1) return 'vừa xong';
   if (m < 60) return `${m} phút trước`;

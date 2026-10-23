@@ -13,7 +13,7 @@ import { Button } from 'primereact/button';
 import { assignExceptions, exceptionCounts, listExceptions, type ExceptionTab } from '../api';
 import { useLoad, useSession } from '../state/session';
 import { Avatar, Card, ErrorNote, Money, PageHeader, Pill, SourceBadge } from '../components/ui';
-import { ACTIVE_SOURCES, DEMO_NOW, USERS } from '../data/seed';
+import { META, now } from '../state/meta';
 import type { ExceptionType, ReconException, SourceCode } from '../data/types';
 import { SOURCE_LABEL, STATUS_META, TYPE_META, fmtDateTime, fmtSla } from '../lib/format';
 
@@ -78,7 +78,7 @@ export default function Exceptions() {
     const ids = selected.map((s) => s.id);
     const to = bulkTo === 'none' ? null : bulkTo ?? null;
     await assignExceptions(ids, to, user);
-    notify({ severity: 'success', summary: 'Đã giao việc', detail: `${ids.length} ngoại lệ → ${USERS.find((u) => u.id === to)?.name ?? 'bỏ giao việc'}` });
+    notify({ severity: 'success', summary: 'Đã giao việc', detail: `${ids.length} ngoại lệ → ${META.users.find((u) => u.id === to)?.name ?? 'bỏ giao việc'}` });
     setSelected([]);
     setBulkTo(undefined);
   };
@@ -86,7 +86,7 @@ export default function Exceptions() {
   const assigneeOptions = [
     { value: 'all', label: 'Mọi người xử lý' },
     { value: 'none', label: 'Chưa giao' },
-    ...USERS.filter((u) => u.role !== 'ADMIN').map((u) => ({ value: u.id, label: u.name })),
+    ...META.users.filter((u) => u.role !== 'ADMIN').map((u) => ({ value: u.id, label: u.name })),
   ];
 
   return (
@@ -102,7 +102,7 @@ export default function Exceptions() {
           <InputText id="exc-search" value={q} onChange={(e) => { setQ(e.target.value); setFirst(0); }} placeholder="Mã ngoại lệ, mã đơn, tên khách, nội dung chuyển khoản…" />
         </IconField>
         <MultiSelect inputId="exc-type" value={types} onChange={(e) => { setTypes(e.value); setFirst(0); }} options={TYPES.map((t) => ({ value: t, label: TYPE_META[t].label }))} optionLabel="label" optionValue="value" placeholder="Mọi loại" maxSelectedLabels={1} selectedItemsLabel="{0} loại" showClear />
-        <MultiSelect inputId="exc-source" value={sources} onChange={(e) => { setSources(e.value); setFirst(0); }} options={ACTIVE_SOURCES.map((s) => ({ value: s, label: SOURCE_LABEL[s] }))} optionLabel="label" optionValue="value" placeholder="Mọi nguồn" maxSelectedLabels={2} selectedItemsLabel="{0} nguồn" showClear />
+        <MultiSelect inputId="exc-source" value={sources} onChange={(e) => { setSources(e.value); setFirst(0); }} options={META.activeSources.map((s) => ({ value: s, label: SOURCE_LABEL[s] }))} optionLabel="label" optionValue="value" placeholder="Mọi nguồn" maxSelectedLabels={2} selectedItemsLabel="{0} nguồn" showClear />
         <Dropdown inputId="exc-assignee" value={assignee} onChange={(e) => { setAssignee(e.value); setFirst(0); }} options={assigneeOptions} optionLabel="label" optionValue="value" />
         <label className="row small ink-2" htmlFor="exc-overdue" style={{ gap: 8, marginLeft: 4 }}>
           <InputSwitch inputId="exc-overdue" checked={overdueOnly} onChange={(e) => { setOverdueOnly(!!e.value); setFirst(0); }} />
@@ -113,7 +113,7 @@ export default function Exceptions() {
       {selected.length > 0 && (
         <div className="bulkbar" role="region" aria-label="Thao tác hàng loạt">
           <strong>Đã chọn {selected.length}</strong>
-          <Dropdown inputId="bulk-assign" value={bulkTo} onChange={(e) => setBulkTo(e.value)} options={[{ value: 'none', label: 'Bỏ giao việc' }, ...USERS.filter((u) => u.role === 'ACCOUNTANT').map((u) => ({ value: u.id, label: u.name }))]} optionLabel="label" optionValue="value" placeholder="Giao cho…" />
+          <Dropdown inputId="bulk-assign" value={bulkTo} onChange={(e) => setBulkTo(e.value)} options={[{ value: 'none', label: 'Bỏ giao việc' }, ...META.users.filter((u) => u.role === 'ACCOUNTANT').map((u) => ({ value: u.id, label: u.name }))]} optionLabel="label" optionValue="value" placeholder="Giao cho…" />
           <Button label="Áp dụng" size="small" onClick={applyBulk} disabled={bulkTo === undefined} />
           <Button label="Bỏ chọn" size="small" text onClick={() => setSelected([])} />
         </div>
@@ -130,7 +130,7 @@ export default function Exceptions() {
           onSelectionChange={(e) => setSelected(e.value as ReconException[])}
           onRowClick={onRowClick}
           className="clickable"
-          rowClassName={(e: ReconException) => ((e.status === 'OPEN' || e.status === 'IN_REVIEW') && e.slaDueAt < DEMO_NOW ? 'row-overdue' : '')}
+          rowClassName={(e: ReconException) => (e.status === 'OPEN' && e.slaDueAt < now() ? 'row-overdue' : '')}
           paginator
           rows={15}
           first={first}
@@ -151,7 +151,8 @@ export default function Exceptions() {
           <Column header="Chênh lệch" align="right" sortable sortField="diffAmount" body={(e: ReconException) => <Money value={e.diffAmount} signed tone />} />
           <Column header="Gợi ý AI" body={(e: ReconException) => e.ai ? <span className={`ai-chip ${e.ai.confidence < 0.7 ? 'low' : ''}`}><i className="pi pi-sparkles" aria-hidden /> {Math.round(e.ai.confidence * 100)}%</span> : <span className="muted">—</span>} />
           <Column header="Hạn xử lý" sortable sortField="slaDueAt" body={(e: ReconException) => {
-            if (e.status !== 'OPEN' && e.status !== 'IN_REVIEW') return <span className="muted small">—</span>;
+            if (e.status === 'IN_REVIEW') return <span className="muted small nowrap" title="Hạn xử lý tạm dừng khi đang chờ đối tác trả lời">Chờ đối tác</span>;
+            if (e.status !== 'OPEN') return <span className="muted small">—</span>;
             const s = fmtSla(e.slaDueAt);
             return <span className={`small nowrap ${s.overdue ? 'sla-over' : s.soon ? 'sla-soon' : ''}`}>{s.text}</span>;
           }} />

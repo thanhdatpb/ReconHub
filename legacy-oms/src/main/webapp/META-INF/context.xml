@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Tomcat substitutes ${...} from system properties: -Doms.db.url=... -Doms.db.user=... -Doms.db.password=... -->
+<Context>
+  <Resource name="jdbc/OmsDB" auth="Container" type="javax.sql.DataSource"
+            driverClassName="org.postgresql.Driver"
+            url="${oms.db.url}" username="${oms.db.user}" password="${oms.db.password}"
+            maxTotal="10" maxIdle="4" maxWaitMillis="10000" validationQuery="select 1" testOnBorrow="true"/>
+</Context>

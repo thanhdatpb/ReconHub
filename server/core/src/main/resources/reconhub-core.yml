@@ -1,0 +1,56 @@
+# Settings shared by the api and batch applications; each imports this file from its application.yml.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/reconhub}
+    username: ${DB_USER:reconhub}
+    password: ${DB_PASSWORD:reconhub}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 50
+        order_inserts: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: never
+      isolation-level-for-create: read_committed
+  artemis:
+    mode: native
+    broker-url: ${ARTEMIS_URL:tcp://localhost:61616}
+    user: ${ARTEMIS_USER:artemis}
+    password: ${ARTEMIS_PASSWORD:artemis}
+  ai:
+    # The chat model is built by AiGateway only when an API key is set, so Spring AI's own auto-configuration is off.
+    model:
+      chat: none
+    chat:
+      client:
+        enabled: false
+  jackson:
+    default-property-inclusion: non_null
+
+mybatis:
+  mapper-locations: classpath*:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+reconhub:
+  zone: Asia/Ho_Chi_Minh
+  data:
+    root: ${DATA_DIR:/data}
+  ai:
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: ${ANTHROPIC_MODEL:claude-opus-5-5}
+  demo:
+    enabled: ${DEMO_ENABLED:true}
