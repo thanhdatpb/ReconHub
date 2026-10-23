@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vn.reconhub.core.report.ReportMapper">
+
+  <!--
+    One row per business date and source. A line counts as:
+      auto    - matched by an automatic tier (EXACT, AMOUNT_DATE, MANY_TO_ONE)
+      manual  - matched by a person, marked duplicate, or its exception is closed
+      open    - still waiting in an exception
+  -->
+  <select id="dayStats" resultType="vn.reconhub.core.report.Rows$DayStat">
+    select f.business_date as date,
+           p.source_code   as source,
+           count(*)        as total_lines,
+           count(*) filter (where p.status = 'MATCHED' and g.method in ('EXACT', 'AMOUNT_DATE', 'MANY_TO_ONE')) as auto_matched,
+           count(*) filter (where (p.status = 'MATCHED' and g.method in ('MANUAL', 'AI_CONFIRMED'))
+                               or p.status = 'DUPLICATE'
+                               or (p.status = 'EXCEPTION' and coalesce(x.closed, false))) as manual_matched,
+           count(*) filter (where p.status in ('NEW', 'EXCEPTION') and not coalesce(x.closed, false)) as exceptions,
+           coalesce(sum(p.amount), 0) as amount_in,
+           coalesce(sum(p.fee), 0)    as fee_total
+    from payment_lines p
+    join import_files f on f.id = p.file_id
+    left join match_groups g on g.id = p.match_group_id
+    left join lateral (
+        select bool_and(e.status in ('RESOLVED', 'WRITTEN_OFF')) as closed
+        from exception_payments ep join recon_exceptions e on e.id = ep.exception_id
+        where ep.payment_line_id = p.id and e.type &lt;&gt; 'FEE_DIFF'
+    ) x on true
+    where f.business_date between #{from} and #{to}
+    <if test="sources != null and !sources.isEmpty()">
+      and p.source_code in <foreach collection="sources" item="s" open="(" separator="," close=")">#{s}</foreach>
+    </if>
+    group by f.business_date, p.source_code
+    order by f.business_date desc, p.source_code
+  </select>
+
+  <!-- The exception queue: dynamic filters, first order and first payment line per exception, no N+1. -->
+  <select id="searchExceptions" resultType="vn.reconhub.core.report.Rows$ExceptionRow">
+    select e.id, e.type, e.source_code, e.status, e.diff_amount, e.created_at, e.sla_due_at, e.assignee_id, e.version,
+           (e.ai ->> 'confidence')::float8 as ai_confidence,
+           o.code as order_code, o.customer_name, o.tracking_code,
+           p.external_ref, p.description
+    from recon_exceptions e
+    left join lateral (
+        select oo.code, oo.customer_name, oo.tracking_code
+        from exception_orders eo join oms.orders oo on oo.code = eo.order_code
+        where eo.exception_id = e.id order by oo.code limit 1
+    ) o on true
+    left join lateral (
+        select pp.external_ref, pp.description
+        from exception_payments ep join payment_lines pp on pp.id = ep.payment_line_id
+        where ep.exception_id = e.id order by ep.position limit 1
+    ) p on true
+    <where>
+      <choose>
+        <when test="q.tab == 'todo'">e.status in ('OPEN', 'IN_REVIEW')</when>
+        <when test="q.tab == 'pending'">e.status = 'WRITE_OFF_PENDING'</when>
+        <when test="q.tab == 'done'">e.status in ('RESOLVED', 'WRITTEN_OFF')</when>
+      </choose>
+      <if test="q.hasTypes()">
+        and e.type in <foreach collection="q.types" item="t" open="(" separator="," close=")">#{t}</foreach>
+      </if>
+      <if test="q.hasSources()">
+        and e.source_code in <foreach collection="q.sources" item="s" open="(" separator="," close=")">#{s}</foreach>
+      </if>
+      <choose>
+        <when test="q.assignee == 'none'">and e.assignee_id is null</when>
+        <when test="q.assignee != null and q.assignee != 'all'">and e.assignee_id = #{q.assignee}</when>
+      </choose>
+      <if test="q.overdueOnly">and e.status in ('OPEN', 'IN_REVIEW') and e.sla_due_at &lt; #{q.now}</if>
+      <if test="q.like() != null">
+        and (upper(e.id) like #{q.like()} or upper(o.code) like #{q.like()} or upper(o.customer_name) like #{q.like()}
+             or upper(o.tracking_code) like #{q.like()} or upper(p.external_ref) like #{q.like()} or upper(p.description) like #{q.like()})
+      </if>
+    </where>
+    order by
+    <if test="q.tab == 'todo'">e.sla_due_at asc,</if>
+    e.created_at desc, e.id desc
+    limit #{q.limit}
+  </select>
+
+  <select id="exceptionCounts" resultType="vn.reconhub.core.report.Rows$ExceptionCounts">
+    select count(*) filter (where status in ('OPEN', 'IN_REVIEW'))                         as todo,
+           count(*) filter (where status = 'WRITE_OFF_PENDING')                             as pending,
+           count(*) filter (where status in ('RESOLVED', 'WRITTEN_OFF'))                    as done,
+           count(*)                                                                          as "all",
+           count(*) filter (where status in ('OPEN', 'IN_REVIEW') and sla_due_at &lt; #{now}) as overdue
+    from recon_exceptions
+  </select>
+
+  <select id="openBySource" resultType="vn.reconhub.core.report.Rows$SourceAmount">
+    select source_code as source, coalesce(sum(abs(diff_amount)), 0) as amount, count(*) as count
+    from recon_exceptions
+    where status in ('OPEN', 'IN_REVIEW', 'WRITE_OFF_PENDING')
+    group by source_code
+    order by 2 desc
+  </select>
+
+  <select id="feeDiffSince" resultType="vn.reconhub.core.report.Rows$FeeDiffTotal">
+    select coalesce(sum(abs(diff_amount)), 0) as amount, count(*) as count
+    from recon_exceptions
+    where type = 'FEE_DIFF' and created_at &gt;= #{since}
+  </select>
+
+  <select id="matchGroups" resultType="vn.reconhub.core.report.Rows$MatchGroupRow">
+    select g.id, g.method, g.confidence,
+           (select string_agg(mi.order_code, ',' order by mi.order_code)
+              from match_items mi where mi.group_id = g.id and mi.order_code is not null) as order_codes,
+           p.external_ref as payment_ref, p.amount, p.fee
+    from payment_lines p
+    join import_files f on f.id = p.file_id
+    join match_groups g on g.id = p.match_group_id
+    where f.business_date = #{date} and p.source_code = #{source}
+    order by g.method &lt;&gt; 'EXACT', g.id
+    limit 300
+  </select>
+
+  <!-- What partners still owe: delivered orders with no money matched yet and not written off. -->
+  <select id="aging" resultType="vn.reconhub.core.report.Rows$AgingRow">
+    with owed as (
+        select o.pay_via as source,
+               (#{asOf}::date - (o.delivered_at at time zone #{zone})::date) as age,
+               case when o.cod_amount &gt; 0 then o.cod_amount else o.amount end as amount
+        from oms.orders o
+        where o.status = 'DELIVERED' and o.pay_via in ('GHN', 'GHTK', 'SHOPEE', 'TIKTOK')
+          and not exists (select 1 from match_items mi where mi.order_code = o.code)
+          and not exists (select 1 from exception_orders eo join recon_exceptions e on e.id = eo.exception_id
+                          where eo.order_code = o.code and e.status = 'WRITTEN_OFF')
+    )
+    select source,
+           coalesce(sum(amount) filter (where age &lt;= 7), 0)                 as b0,
+           coalesce(sum(amount) filter (where age between 8 and 30), 0)        as b1,
+           coalesce(sum(amount) filter (where age between 31 and 60), 0)       as b2,
+           coalesce(sum(amount) filter (where age &gt; 60), 0)                 as b3
+    from owed
+    group by source
+    order by sum(amount) desc
+  </select>
+
+  <select id="journal" resultType="vn.reconhub.core.report.Rows$JournalRow">
+    with matched as (
+        select f.business_date as d, p.source_code as s, sum(p.amount) as amt, sum(p.fee) as fee
+        from payment_lines p join import_files f on f.id = p.file_id
+        where p.status = 'MATCHED' and f.business_date &gt;= #{from} and f.business_date &lt; #{to}
+        group by 1, 2
+    )
+    select date, source, kind, amount, ref from (
+        select d as date, s as source, 'IN' as kind, amt as amount, null as ref from matched
+        union all
+        select d, s, 'FEE', fee, null from matched where fee &gt; 0
+        union all
+        select (e.resolved_at at time zone #{zone})::date, e.source_code,
+               case when e.diff_amount &lt; 0 then 'WRITE_OFF_LOSS' else 'WRITE_OFF_GAIN' end,
+               abs(e.diff_amount), e.id
+        from recon_exceptions e
+        where e.status = 'WRITTEN_OFF' and e.resolved_at &gt;= #{fromTs} and e.resolved_at &lt; #{toTs}
+    ) x
+    order by date, kind, source, ref
+  </select>
+
+  <select id="filesReceivedBetween" resultType="vn.reconhub.core.report.Rows$FileArrivalRow">
+    select source_code as source, received_at, total_rows, status
+    from import_files
+    where received_at &gt;= #{from} and received_at &lt; #{to} and status not in ('DUPLICATE', 'FAILED')
+    order by received_at
+  </select>
+</mapper>

@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: reconhub-batch
+  config:
+    import: classpath:reconhub-core.yml
+  main:
+    banner-mode: off
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    properties:
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
+server:
+  port: ${PORT:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+reconhub:
+  report-recipients: ${REPORT_RECIPIENTS:ketoan@shop.example}
+  inbox-poll-ms: ${INBOX_POLL_MS:20000}
+
+logging:
+  level:
+    org.springframework.batch.core.step.AbstractStep: warn
