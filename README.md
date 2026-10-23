@@ -51,12 +51,16 @@ Ports and passwords can be changed in `.env`. `docker compose down -v` removes e
 
 ### Things to try
 
-1. **Overview**: auto-match rate, unreconciled money by partner, late partner files, failed jobs.
+1. **Overview**: auto-match rate, unreconciled money by partner, late partner files, failed jobs that still need someone
+   (not restarted, not replaced by a later file, not marked as handled).
 2. **Exception queue → an "unmatched payment"**: the AI suggestion ranks candidate orders with reasons; confirm it to match.
 3. **Maker-checker**: as `ha`, request a write-off above 50,000 ₫; it waits for approval. Sign in as `nam` to approve
    (the requester cannot approve their own request).
 4. **Batch monitor → the failed `fileIngestionJob`**: GHTK changed its date format, so the job stopped the file instead of
    silently skipping most of its rows. "AI giải thích" explains it, and points to the corrected `_v2` file loaded later the same day.
+   Because that replacement loaded, the run shows "Đã có file thay thế …", the Overview no longer warns about it and
+   "Chạy lại" is refused (it would load the day's money twice). Any other failed run can be closed with
+   "Đánh dấu đã xử lý" and a required note; the expanded row shows who did it and when.
 5. **Restart a job**: `docker compose stop mailpit`, press "Chạy ngay" on `agingAndReportJob`, it fails at
    `emailReportStep`. `docker compose start mailpit`, press "Chạy lại": only the e-mail step runs again.
 6. **Cross-system flow**: create an order in the legacy OMS (pay via VCB), then upload a Vietcombank statement whose
@@ -132,5 +136,6 @@ All endpoints except login need `Authorization: Bearer <token>`. Errors are `{"m
 | `GET /api/sources`, `POST /api/sources/{code}/mapping/suggest`, `PUT /api/sources/{code}/mapping` | Column mapping (save: admin or chief accountant) |
 | `GET /api/recon/days?from=&to=&source=`, `GET /api/recon/days/{date}/{source}/groups` | Reconciliation results |
 | `GET /api/aging`, `GET /api/journal?month=yyyy-MM` | Receivables aging, journal entries (112/131/641/711/811) |
-| `GET /api/batch/executions`, `POST /api/batch/executions/{id}/restart`, `POST /api/batch/jobs/{job}/run` | Batch monitor and commands |
+| `GET /api/batch/executions`, `POST /api/batch/executions/{id}/restart`, `POST /api/batch/jobs/{job}/run` | Batch monitor and commands; failed runs carry `supersededBy` and `acknowledged` |
+| `POST /api/batch/executions/{id}/acknowledge` `{"note": "..."}` | Mark a failed or stopped run as handled (any role, note required, once) |
 | `POST /api/ai/batch/{id}/explain`, `POST /api/ai/ask` | Failure explanation, data assistant |
