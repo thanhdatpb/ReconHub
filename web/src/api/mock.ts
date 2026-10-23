@@ -508,7 +508,7 @@ export async function feeProposalFor(exceptionId: string): Promise<FeeProposalDr
   const label = base === 'COD' ? 'COD' : base === 'LINE_GROSS' ? 'giá trị giao dịch' : 'giá trị đơn';
   return {
     source: e.source, effectiveFrom, fromException: e.id,
-    components: [...current.components, { label: `Phụ phí ${label} trên ${fmtVnd(threshold)}`, kind: 'FIXED', amount: extra, when: { base, above: threshold } }],
+    components: [...current.components, { label: `Phụ phí ${label} lớn`, kind: 'FIXED', amount: extra, when: { base, above: threshold } }],
     note: `Suy ra từ ${same.length} ngoại lệ sai phí: +${fmtVnd(extra)} cho ${label} trên ${fmtVnd(threshold)} từ ${dmy(effectiveFrom)}. Đối chiếu với thông báo của đối tác trước khi gửi.`,
     evidence: [
       `${same.length} giao dịch ${e.source} từ ${dmy(effectiveFrom)} bị trừ thêm đúng ${fmtVnd(extra)}, ${label} từ ${fmtVnd(minBase)} đến ${fmtVnd(Math.max(...values))}`,

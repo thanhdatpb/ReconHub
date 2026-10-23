@@ -78,10 +78,10 @@ function FeeEditor({ source, initial, evidence, current, busy, onCancel, onSubmi
         </div>
       </div>
       <div className="table-wrap">
-        <table className="mini-table" style={{ minWidth: 860 }}>
+        <table className="mini-table" style={{ minWidth: 1080 }}>
           <thead>
             <tr>
-              <th>Khoản phí</th>
+              <th style={{ minWidth: 200 }}>Khoản phí</th>
               <th>Cách tính</th>
               <th>Điều kiện</th>
               <th aria-label="Xoá" />
@@ -92,7 +92,7 @@ function FeeEditor({ source, initial, evidence, current, busy, onCancel, onSubmi
               const ck = condKind(c);
               return (
                 <tr key={i}>
-                  <td><InputText value={c.label} onChange={(e) => setRow(i, { ...c, label: e.target.value })} aria-label="Tên khoản phí" style={{ width: '100%' }} /></td>
+                  <td><InputText value={c.label} onChange={(e) => setRow(i, { ...c, label: e.target.value })} aria-label="Tên khoản phí" style={{ width: '100%', minWidth: 190 }} /></td>
                   <td>
                     <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
                       <Dropdown value={c.kind} options={KINDS} onChange={(e) => setRow(i, e.value === 'FIXED'

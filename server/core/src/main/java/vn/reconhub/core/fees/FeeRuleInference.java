@@ -49,7 +49,7 @@ public class FeeRuleInference {
     public record Inferred(String source, long extra, Base base, Long threshold, LocalDate effectiveFrom, int cases,
                            long minBase, long maxBase, int chargedAsBefore, List<String> exceptionIds) {
         public FeeComponent component() {
-            return FeeComponent.fixed(threshold == null ? "Phụ phí mới" : "Phụ phí " + baseLabel(base) + " trên " + Money.format(threshold), extra,
+            return FeeComponent.fixed(threshold == null ? "Phụ phí mới" : "Phụ phí " + baseLabel(base) + " lớn", extra,
                     threshold == null ? null : new FeeComponent.Condition(null, base, threshold, null));
         }
 
