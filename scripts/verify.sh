@@ -27,7 +27,10 @@ for part in "${parts[@]}"; do
   case "$part" in
     server)
       socket=()
-      $it && socket=(-v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_RYUK_DISABLED=true)
+      # Testcontainers inside a container reaches its databases through the host; host.docker.internal works on
+      # Docker Desktop (Windows, macOS) and, with host-gateway, on Linux, where the default bridge IP is not always reachable.
+      $it && socket=(-v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_RYUK_DISABLED=true
+        --add-host=host.docker.internal:host-gateway -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal)
       docker run --rm "${socket[@]}" --mount "type=bind,source=$root/server,target=/src" -v reconhub-m2:/root/.m2 \
         -w /src maven:3.9-eclipse-temurin-21 mvn -B -ntp verify
       ;;
