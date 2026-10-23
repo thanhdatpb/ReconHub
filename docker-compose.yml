@@ -28,6 +28,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    restart: unless-stopped
 
   artemis:
     image: apache/activemq-artemis:2.42.0-alpine
@@ -40,11 +41,13 @@ services:
       JAVA_ARGS_APPEND: "-Dbrokerconfig.maxDiskUsage=-1 -Xms128m -Xmx512m"
     ports:
       - "${ARTEMIS_CONSOLE_PORT:-8161}:8161"
+    restart: unless-stopped
 
   mailpit:
     image: axllent/mailpit:v1.27
     ports:
       - "${MAILPIT_PORT:-8025}:8025"
+    restart: unless-stopped
 
   # Runs once: sample orders, 30 days of partner files and the ground truth for eval_matching.py.
   datagen:
