@@ -54,3 +54,8 @@ reconhub:
     model: ${ANTHROPIC_MODEL:claude-opus-5-5}
   demo:
     enabled: ${DEMO_ENABLED:true}
+  # Bank account for VietQR codes on orders. The defaults are sample values; set VIETQR_* in .env.
+  vietqr:
+    bin: ${VIETQR_BIN:970436}
+    account: ${VIETQR_ACCOUNT:1234567890}
+    account-name: ${VIETQR_ACCOUNT_NAME:CONG TY TNHH SHOP DEMO}
