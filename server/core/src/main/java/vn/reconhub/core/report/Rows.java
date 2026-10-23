@@ -50,6 +50,21 @@ public final class Rows {
         public long count;
     }
 
+    /**
+     * A matched, fee-checked payment line of a single order. {@code extra} is the fee charged minus the expected fee when
+     * the line raised a FEE_DIFF exception ({@code exceptionId}), otherwise null: the fee matched the schedule.
+     */
+    public static class FeeCheckedLine {
+        public long lineId;
+        public Instant txnAt;
+        public long fee;
+        public long gross;
+        public long cod;
+        public long orderAmount;
+        public Long extra;
+        public String exceptionId;
+    }
+
     public static class FeeDiffTotal {
         public long amount;
         public long count;

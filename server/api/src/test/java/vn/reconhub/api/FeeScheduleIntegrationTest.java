@@ -128,6 +128,14 @@ class FeeScheduleIntegrationTest {
     void proposingNeedsAToken() throws Exception {
         mvc.perform(post("/api/sources/GHN/fee-schedules").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/exceptions/EX-1/fee-proposal")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void aProposalFromAnUnknownExceptionIsNotFound() throws Exception {
+        mvc.perform(get("/api/exceptions/EX-000000-0000/fee-proposal").header("Authorization", "Bearer " + login("ha")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message", is("Không có ngoại lệ EX-000000-0000")));
     }
 
     private ResultActions propose(String user, String source, String from, List<Map<String, Object>> components, String note) throws Exception {

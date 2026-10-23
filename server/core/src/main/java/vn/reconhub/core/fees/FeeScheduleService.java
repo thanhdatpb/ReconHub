@@ -8,6 +8,8 @@ import vn.reconhub.core.domain.Enums.FeeScheduleStatus;
 import vn.reconhub.core.domain.Enums.Role;
 import vn.reconhub.core.domain.FeeComponent;
 import vn.reconhub.core.domain.FeeSchedule;
+import vn.reconhub.core.domain.ReconException;
+import vn.reconhub.core.matching.FeeCalculator;
 import vn.reconhub.core.messaging.JmsOutbox;
 import vn.reconhub.core.messaging.Messages;
 import vn.reconhub.core.repo.ExceptionRepository;
@@ -18,6 +20,7 @@ import vn.reconhub.core.workflow.WorkflowException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -39,13 +42,41 @@ public class FeeScheduleService {
     private final FeeScheduleRepository schedules;
     private final SourceRepository sources;
     private final ExceptionRepository exceptions;
+    private final FeeRuleInference inference;
+    private final FeeCalculator fees;
     private final JmsOutbox outbox;
 
-    public FeeScheduleService(FeeScheduleRepository schedules, SourceRepository sources, ExceptionRepository exceptions, JmsOutbox outbox) {
+    public FeeScheduleService(FeeScheduleRepository schedules, SourceRepository sources, ExceptionRepository exceptions,
+                              FeeRuleInference inference, FeeCalculator fees, JmsOutbox outbox) {
         this.schedules = schedules;
         this.sources = sources;
         this.exceptions = exceptions;
+        this.inference = inference;
+        this.fees = fees;
         this.outbox = outbox;
+    }
+
+    /** A proposal filled in from a fee difference, for a person to check and send; nothing is saved. */
+    public record Draft(String source, LocalDate effectiveFrom, List<FeeComponent> components, String note, String fromException,
+                        List<String> evidence) {}
+
+    /**
+     * The schedule in force on the inferred date plus the inferred extra component. Refused with the reason when the
+     * difference is not explained by one simple rule (see {@link FeeRuleInference}).
+     */
+    @Transactional(readOnly = true)
+    public Draft draftFromException(String exceptionId) {
+        ReconException e = exceptions.findById(exceptionId).orElseThrow(() -> new WorkflowException(NOT_FOUND, "Không có ngoại lệ " + exceptionId));
+        FeeRuleInference.Outcome outcome = inference.infer(e);
+        if (!outcome.found()) throw new WorkflowException(INVALID, outcome.reason());
+        FeeRuleInference.Inferred t = outcome.inferred();
+        FeeSchedule current = fees.approved().inForce(t.source(), t.effectiveFrom())
+                .orElseThrow(() -> new WorkflowException(INVALID, "Nguồn " + t.source() + " chưa có biểu phí đã duyệt"));
+        List<FeeComponent> components = new ArrayList<>(current.getComponents());
+        components.add(t.component());
+        return new Draft(t.source(), t.effectiveFrom(), components,
+                "Suy ra từ " + t.cases() + " ngoại lệ sai phí: " + t.rule() + ". Đối chiếu với thông báo của đối tác trước khi gửi.",
+                exceptionId, t.evidence());
     }
 
     @Transactional(readOnly = true)

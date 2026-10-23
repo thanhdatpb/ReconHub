@@ -66,6 +66,12 @@ public class FeeScheduleController {
                 Instant.now(clock)), names());
     }
 
+    /** "Đề xuất cập nhật biểu phí" on an AI suggestion: a filled-in proposal to review, or 400 with why none can be inferred. */
+    @GetMapping("/exceptions/{id}/fee-proposal")
+    public FeeScheduleService.Draft proposalFromException(@PathVariable String id) {
+        return service.draftFromException(id);
+    }
+
     @PostMapping("/fee-schedules/{id}/approve")
     @PreAuthorize("hasAnyRole('ADMIN', 'APPROVER')")
     public FeeScheduleView approve(@PathVariable long id, @Valid @RequestBody DecideRequest req) {
