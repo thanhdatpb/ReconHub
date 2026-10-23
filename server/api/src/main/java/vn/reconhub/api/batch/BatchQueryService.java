@@ -5,6 +5,10 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import vn.reconhub.api.web.Views;
 import vn.reconhub.core.ai.JobStatusProvider;
+import vn.reconhub.core.domain.BatchExecutionAck;
+import vn.reconhub.core.files.ReplacementFiles;
+import vn.reconhub.core.repo.AppUserRepository;
+import vn.reconhub.core.repo.BatchExecutionAckRepository;
 
 import java.sql.ResultSet;
 import java.sql.Timestamp;
@@ -28,10 +32,17 @@ public class BatchQueryService implements JobStatusProvider {
     private static final DateTimeFormatter HM_DM = DateTimeFormatter.ofPattern("HH:mm dd/MM");
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final ReplacementFiles replacements;
+    private final BatchExecutionAckRepository acks;
+    private final AppUserRepository users;
     private final ZoneId batchZone = ZoneId.systemDefault();
 
-    public BatchQueryService(NamedParameterJdbcTemplate jdbc) {
+    public BatchQueryService(NamedParameterJdbcTemplate jdbc, ReplacementFiles replacements, BatchExecutionAckRepository acks,
+                             AppUserRepository users) {
         this.jdbc = jdbc;
+        this.replacements = replacements;
+        this.acks = acks;
+        this.users = users;
     }
 
     /** Full text of a failure, kept for the explainer; the list view only shows the first meaningful line. */
@@ -51,7 +62,15 @@ public class BatchQueryService implements JobStatusProvider {
     public List<JobLine> recent(int limit) {
         return recent(limit, null).stream().map(d -> new JobLine(d.view().id(), d.view().job(), d.view().status(),
                 d.view().startTime() == null ? "" : HM_DM.format(d.view().startTime().atZone(ZoneId.of("Asia/Ho_Chi_Minh"))),
-                d.view().exitMessage())).toList();
+                d.view().exitMessage(), handled(d.view()))).toList();
+    }
+
+    /** For the assistant; the note itself stays out, as it is free text that may name customers. */
+    private static String handled(Views.JobView v) {
+        if (v.supersededBy() != null) return "đã có file thay thế " + v.supersededBy().fileName();
+        if (v.acknowledged() != null) return "đã được " + v.acknowledged().byName() + " đánh dấu đã xử lý";
+        if (v.restartedAs() != null) return "đã chạy lại thành #" + v.restartedAs();
+        return null;
     }
 
     private List<Detail> recent(int limit, Long onlyId) {
@@ -89,16 +108,46 @@ public class BatchQueryService implements JobStatusProvider {
             if (full != null && !full.isBlank()) stepMessages.computeIfAbsent(id, k -> new LinkedHashMap<>()).put(rs.getString(2), full);
         });
 
+        Map<Long, Views.Acknowledgement> acked = acknowledgements(execs.stream()
+                .filter(r -> Views.JobView.failedOrStopped((String) r.get("status")))
+                .map(r -> ((Number) r.get("job_execution_id")).longValue()).toList());
+
         List<Detail> out = new ArrayList<>();
         for (Map<String, Object> r : execs) {
             long id = ((Number) r.get("job_execution_id")).longValue();
             String full = (String) r.get("exit_message");
             String status = (String) r.get("status");
+            boolean stuck = Views.JobView.failedOrStopped(status);
             Number restartedAs = (Number) r.get("restarted_as");
-            Views.JobView v = new Views.JobView(id, (String) r.get("job_name"), params.getOrDefault(id, Map.of()), status,
+            Map<String, String> jobParams = params.getOrDefault(id, Map.of());
+            Views.JobView v = new Views.JobView(id, (String) r.get("job_name"), jobParams, status,
                     instant(r.get("start_time")), instant(r.get("end_time")), steps.getOrDefault(id, List.of()),
-                    shortMessage(full), "FAILED".equals(status) || "STOPPED".equals(status) ? (restartedAs == null ? null : restartedAs.longValue()) : null);
+                    shortMessage(full), stuck && restartedAs != null ? restartedAs.longValue() : null,
+                    stuck ? superseded(jobParams) : null, acked.get(id));
             out.add(new Detail(v, full, stepMessages.getOrDefault(id, Map.of())));
+        }
+        return out;
+    }
+
+    /** Only file ingestion runs carry a {@code fileId}; the rule for "replaced" lives in {@link ReplacementFiles}. */
+    private Views.Superseded superseded(Map<String, String> params) {
+        String fileId = params.get("fileId");
+        if (fileId == null) return null;
+        return replacements.replacementFor(Long.parseLong(fileId))
+                .map(f -> new Views.Superseded(f.getId(), f.getFileName(), f.getReceivedAt())).orElse(null);
+    }
+
+    private Map<Long, Views.Acknowledgement> acknowledgements(List<Long> executionIds) {
+        if (executionIds.isEmpty()) return Map.of();
+        List<BatchExecutionAck> found = acks.findAllById(executionIds);
+        if (found.isEmpty()) return Map.of();
+        Map<String, String> names = new HashMap<>();
+        users.findAllById(found.stream().map(BatchExecutionAck::getAcknowledgedBy).distinct().toList())
+                .forEach(u -> names.put(u.getId(), u.getFullName()));
+        Map<Long, Views.Acknowledgement> out = new HashMap<>();
+        for (BatchExecutionAck a : found) {
+            out.put(a.getJobExecutionId(), new Views.Acknowledgement(a.getAcknowledgedBy(),
+                    names.getOrDefault(a.getAcknowledgedBy(), a.getAcknowledgedBy()), a.getAcknowledgedAt(), a.getNote()));
         }
         return out;
     }
