@@ -8,7 +8,7 @@ import { Dialog } from 'primereact/dialog';
 import { explainExecution, listExecutions, restartExecution } from '../api';
 import { useLoad, useSession } from '../state/session';
 import { Card, ErrorNote, Loading, PageHeader, Pill } from '../components/ui';
-import { BATCH_SCHEDULE } from '../data/seed';
+import { META } from '../state/meta';
 import type { BatchStatus, JobExecution, JobName, StepExecution } from '../data/types';
 import { BATCH_STATUS_META, fmtDateTime, fmtDuration, fmtNumber } from '../lib/format';
 
@@ -98,8 +98,12 @@ export default function Batch() {
   const rows = (res.data ?? []).filter((x) => (!job || x.job === job) && (!status || x.status === status));
 
   const restart = async (x: JobExecution) => {
-    const fresh = await restartExecution(x.id);
-    notify({ severity: 'info', summary: `Đã chạy lại #${x.id}`, detail: `Lần chạy mới #${fresh.id}. Các bước đã xong được bỏ qua.` });
+    try {
+      const r = await restartExecution(x.id);
+      notify({ severity: 'info', summary: `Chạy lại #${x.id}`, detail: r.message });
+    } catch (e) {
+      notify({ severity: 'error', summary: `Không chạy lại được #${x.id}`, detail: (e as Error).message, life: 6000 });
+    }
   };
 
   return (
@@ -107,7 +111,7 @@ export default function Batch() {
       <PageHeader title="Theo dõi batch" sub="Các job Spring Batch: nạp file, khớp, kiểm tra phí, báo cáo tuổi nợ, dọn dữ liệu. Lấy từ các bảng BATCH_JOB_EXECUTION và BATCH_STEP_EXECUTION." />
       <Card title="Lịch chạy" flush>
         <div className="schedule">
-          {BATCH_SCHEDULE.map((s) => (
+          {META.batchSchedule.map((s) => (
             <div key={s.job}>
               <div className="mono small cell-main">{s.job}</div>
               <div className="small ink-2">{s.human}</div>

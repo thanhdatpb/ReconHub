@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vn.shop.oms.db.OrderMapper">
+
+  <sql id="filters">
+    <where>
+      <if test="s.like != null">
+        (upper(code) like #{s.like} or upper(customer_name) like #{s.like} or upper(coalesce(tracking_code, '')) like #{s.like}
+         or upper(coalesce(channel_ref, '')) like #{s.like} or phone like #{s.like})
+      </if>
+      <if test="s.status != null and s.status != ''">and status = #{s.status}</if>
+      <if test="s.payVia != null and s.payVia != ''">and pay_via = #{s.payVia}</if>
+    </where>
+  </sql>
+
+  <select id="search" resultType="vn.shop.oms.model.Order">
+    select * from oms.orders
+    <include refid="filters"/>
+    order by created_at desc
+    limit #{s.pageSize} offset #{s.offset}
+  </select>
+
+  <select id="count" resultType="int">
+    select count(*) from oms.orders
+    <include refid="filters"/>
+  </select>
+
+  <select id="findByCode" resultType="vn.shop.oms.model.Order">
+    select * from oms.orders where code = #{code}
+  </select>
+
+  <select id="lastCodeWithPrefix" resultType="string">
+    select max(code) from oms.orders where code like #{prefix} || '%'
+  </select>
+
+  <insert id="insert">
+    insert into oms.orders (code, channel, channel_ref, customer_name, phone, amount, cod_amount, pay_via, tracking_code,
+                            status, remote_area, created_at, note)
+    values (#{code}, #{channel}, #{channelRef}, #{customerName}, #{phone}, #{amount}, #{codAmount}, #{payVia}, #{trackingCode},
+            'NEW', #{remoteArea}, now(), #{note})
+  </insert>
+
+  <!-- delivered_at is stamped the first time an order becomes DELIVERED; ReconHub ages receivables from it. -->
+  <update id="updateStatus">
+    update oms.orders
+    set status = #{status},
+        tracking_code = coalesce(#{trackingCode}, tracking_code),
+        delivered_at = case when #{status} = 'DELIVERED' then coalesce(delivered_at, now()) else delivered_at end
+    where code = #{code}
+  </update>
+
+  <select id="countByStatus" resultType="vn.shop.oms.model.StatusCount">
+    select status, count(*)::int as total from oms.orders group by status order by status
+  </select>
+
+  <select id="paymentOf" resultType="map">
+    select g.method, g.created_at as matched_at, p.external_ref, p.source_code
+    from match_items mi
+    join match_groups g on g.id = mi.group_id
+    left join payment_lines p on p.match_group_id = g.id
+    where mi.order_code = #{code}
+    limit 1
+  </select>
+
+  <select id="staff" resultType="map">
+    select username, password_sha256, full_name from oms.staff where username = #{username}
+  </select>
+</mapper>

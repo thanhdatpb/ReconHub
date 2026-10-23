@@ -4,7 +4,7 @@ import { getDashboard, type FileArrival } from '../api';
 import { useLoad } from '../state/session';
 import { Card, ErrorNote, Kpi, Loading, Money, PageHeader, Pill, SourceBadge } from '../components/ui';
 import { baseOptions, barStyle, targetLine, tipLabels, useChartTheme, withAlpha } from '../components/charts';
-import { DEMO_NOW } from '../data/seed';
+import { now } from '../state/meta';
 import { SOURCE_LABEL, TYPE_META, fmtDayMonth, fmtLongDate, fmtPct, fmtTime, fmtVndShort } from '../lib/format';
 
 function Arrival({ a }: { a: FileArrival }) {
@@ -65,7 +65,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <PageHeader title="Tổng quan đối soát" sub={`${fmtLongDate(DEMO_NOW)} · cập nhật lúc ${fmtTime(DEMO_NOW)}`} />
+      <PageHeader title="Tổng quan đối soát" sub={`${fmtLongDate(now())} · cập nhật lúc ${fmtTime(now())}`} />
 
       <div className="attention" aria-label="Cần chú ý">
         {data.overdue > 0 && (

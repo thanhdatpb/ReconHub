@@ -266,7 +266,7 @@ public class ReconPipeline {
     private JobParameters runParams(Instant at, LocalDate runDate, String trigger) {
         return new JobParametersBuilder()
                 .addString("runDate", runDate.toString())
-                .addString("at", at.toString())
+                .addString("runAt", at.toString())
                 .addString("trigger", trigger, false)
                 .toJobParameters();
     }

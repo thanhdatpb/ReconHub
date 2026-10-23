@@ -15,7 +15,8 @@ public class BatchExplainer {
         this.ai = ai;
     }
 
-    public record Failure(long executionId, String job, String params, String exitMessage, List<String> steps) {}
+    /** {@code details}: extra facts the caller knows, such as the first bad rows of the file or a replacement file. */
+    public record Failure(long executionId, String job, String params, String exitMessage, List<String> steps, List<String> details) {}
 
     public record Explanation(String cause, List<String> evidence, List<String> steps, String engine) {}
 
@@ -29,7 +30,8 @@ public class BatchExplainer {
                             Chỉ dựa vào dữ kiện. Không đề xuất sửa dữ liệu trực tiếp trong cơ sở dữ liệu.
                             Trả về JSON: cause (1-2 câu), evidence (các dòng dữ kiện quan trọng, giữ nguyên văn), steps (2-4 bước xử lý), engine (để "llm").
                             """)
-                    .user("Job: " + f.job() + "\nTham số: " + f.params() + "\nThông báo lỗi: " + f.exitMessage() + "\nCác bước:\n" + String.join("\n", f.steps()))
+                    .user("Job: " + f.job() + "\nTham số: " + f.params() + "\nThông báo lỗi: " + f.exitMessage() + "\nCác bước:\n" + String.join("\n", f.steps())
+                            + (f.details().isEmpty() ? "" : "\nDữ kiện thêm:\n" + String.join("\n", f.details())))
                     .call()
                     .responseEntity(Explanation.class);
             return new AiGateway.Result<>(r.entity(), r.response());
@@ -43,6 +45,17 @@ public class BatchExplainer {
         List<String> evidence = new ArrayList<>();
         evidence.add(firstLine(msg));
         f.steps().stream().filter(s -> s.contains("FAILED")).forEach(evidence::add);
+        f.details().stream().filter(d -> d.startsWith("Dòng")).limit(3).forEach(evidence::add);
+        String replacement = f.details().stream().filter(d -> d.startsWith("File thay thế")).findFirst().orElse(null);
+        String badDate = f.details().stream().filter(d -> d.contains("Không đọc được ngày")).findFirst().orElse(null);
+        if (msg.contains("SkipLimitExceeded") && badDate != null) {
+            List<String> steps = new ArrayList<>();
+            if (replacement != null) steps.add("Không cần chạy lại: " + replacement.substring(0, 1).toLowerCase() + replacement.substring(1) + ".");
+            steps.add("Nếu đối tác giữ định dạng mới, sửa định dạng ngày của nguồn ở Cấu hình nguồn rồi tải lại file.");
+            steps.add("Chạy lại job này khi chưa sửa cấu hình sẽ lỗi y như cũ, vì file không thay đổi.");
+            return new Explanation("Cột ngày trong file không còn theo mẫu đã cấu hình: đối tác đã đổi định dạng ngày. Số dòng lỗi vượt ngưỡng 10% nên job dừng để không nạp thiếu tiền.",
+                    evidence, steps, "rules");
+        }
         if (msg.contains("SkipLimitExceeded")) {
             return new Explanation("Quá nhiều dòng lỗi trong file nên job dừng để tránh nạp thiếu dữ liệu. Thường do đối tác đổi định dạng (ngày, số tiền) hoặc gửi nhầm file.",
                     evidence, List.of("Mở màn Nhận file, xem các dòng lỗi để biết cột nào sai định dạng.",

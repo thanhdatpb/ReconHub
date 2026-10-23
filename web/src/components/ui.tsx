@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { SOURCES, USERS } from '../data/seed';
+import { META } from '../state/meta';
 import type { SourceCode } from '../data/types';
 import { KIND_LABEL, SOURCE_LABEL, fmtSignedVnd, fmtVnd, initials, type Tone } from '../lib/format';
 
@@ -14,7 +14,7 @@ export function Pill({ tone, icon, children }: { tone: Tone; icon?: string; chil
 }
 
 export function SourceBadge({ code }: { code: SourceCode }) {
-  const s = SOURCES.find((x) => x.code === code);
+  const s = META.sources.find((x) => x.code === code);
   return (
     <span className="src">
       {s && <i className={KIND_LABEL[s.kind].icon} aria-hidden />}
@@ -95,7 +95,7 @@ export function Meter({ value, label, bad = 0.9, warn = 0.95 }: { value: number;
 }
 
 export function Avatar({ userId, showName = false }: { userId: string | null; showName?: boolean }) {
-  const u = USERS.find((x) => x.id === userId);
+  const u = META.users.find((x) => x.id === userId);
   if (!u)
     return (
       <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>

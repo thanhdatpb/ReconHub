@@ -1,0 +1,29 @@
+/* Deliberately plain: this is the shop's old in-house order system. */
+body { margin: 0; font: 13px Tahoma, Verdana, Arial, sans-serif; color: #222; background: #eef1f5; }
+a { color: #1a4f9c; }
+.top { background: #1f3b63; color: #fff; padding: 8px 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.top .logo { font-weight: bold; background: #f0b429; color: #1f3b63; padding: 1px 6px; }
+.top .who { margin-left: auto; }
+.top a { color: #ffd77a; }
+.menu { background: #dfe6f0; padding: 6px 14px; border-bottom: 1px solid #b8c4d6; }
+.page { padding: 12px 14px; overflow-x: auto; }
+.box { background: #fff; border: 1px solid #b8c4d6; padding: 10px; margin-bottom: 10px; }
+.narrow { max-width: 360px; }
+.grid { border-collapse: collapse; width: 100%; background: #fff; }
+.grid th { background: #c9d5e6; text-align: left; padding: 4px 6px; border: 1px solid #a9b8cd; }
+.grid td { padding: 3px 6px; border: 1px solid #d4dbe6; white-space: nowrap; }
+.grid tr:nth-child(even) td { background: #f6f8fb; }
+.r { text-align: right; }
+.detail th { text-align: left; padding: 4px 12px 4px 0; width: 170px; color: #555; }
+.st { padding: 0 5px; border: 1px solid #999; font-size: 11px; }
+.st-DELIVERED { background: #dff3df; border-color: #5a9e5a; }
+.st-SHIPPING { background: #e4ecfb; border-color: #6b8fd6; }
+.st-NEW { background: #fff7d6; border-color: #c9a227; }
+.st-CANCELLED, .st-RETURNED { background: #f8e0e0; border-color: #c06060; }
+.err { background: #fbe3e3; border: 1px solid #d66; padding: 6px 10px; margin-bottom: 10px; }
+.ok { background: #e3f6e3; border: 1px solid #6a6; padding: 6px 10px; margin-bottom: 10px; }
+.errorMessage, .errorMessage li { color: #b00; list-style: none; display: inline; padding: 0; }
+.hint, .muted, small { color: #777; }
+.empty { text-align: center; color: #777; padding: 12px; }
+.foot { color: #888; font-size: 11px; padding: 10px 14px; }
+input[type=text], input[type=password], select { font: inherit; padding: 2px 4px; }

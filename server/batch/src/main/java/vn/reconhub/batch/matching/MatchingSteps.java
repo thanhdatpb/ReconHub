@@ -8,6 +8,7 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.ListItemReader;
@@ -34,7 +35,7 @@ import java.time.LocalDate;
 
 /**
  * matchingJob: matchLinesStep (every NEW line through the rule tiers) → detectUnpaidStep → aiSuggestStep.
- * feeValidationJob: validateFeeStep → aiSuggestStep. Both take {@code runDate} and {@code at} (the run's clock time).
+ * feeValidationJob: validateFeeStep → aiSuggestStep. Both take {@code runDate} and {@code runAt} (the run's clock time).
  */
 @Configuration
 public class MatchingSteps {
@@ -63,7 +64,7 @@ public class MatchingSteps {
     /** The run context the engine records on match groups and exceptions, e.g. actor "matchingJob #42". */
     static MatchingEngine.Run run(StepExecution step) {
         JobParameters p = step.getJobParameters();
-        return new MatchingEngine.Run(Instant.parse(p.getString("at")), LocalDate.parse(p.getString("runDate")),
+        return new MatchingEngine.Run(Instant.parse(p.getString("runAt")), LocalDate.parse(p.getString("runDate")),
                 step.getJobExecution().getJobInstance().getJobName() + " #" + step.getJobExecutionId());
     }
 
@@ -79,7 +80,7 @@ public class MatchingSteps {
 
     /** Line ids are read up front; a restart simply reads the lines still NEW. */
     @Bean
-    Step matchLinesStep(JobRepository repo, PlatformTransactionManager tx, ListItemReader<Long> newLineReader, ItemWriter<Long> matchWriter) {
+    Step matchLinesStep(JobRepository repo, PlatformTransactionManager tx, ListItemReader<Long> newLineReader, MatchWriter matchWriter) {
         return new StepBuilder("matchLinesStep", repo).<Long, Long>chunk(100, tx)
                 .reader(newLineReader)
                 .writer(matchWriter)
@@ -92,12 +93,28 @@ public class MatchingSteps {
         return new ListItemReader<>(jdbc.queryForList("select id from payment_lines where status = 'NEW' order by id", Long.class));
     }
 
-    /** Counts each outcome in the step context so the batch screen can show how lines were matched. */
     @Bean
     @StepScope
-    ItemWriter<Long> matchWriter(@Value("#{stepExecution}") StepExecution step) {
-        MatchingEngine.Run run = run(step);
-        return chunk -> {
+    MatchWriter matchWriter(@Value("#{stepExecution}") StepExecution step) {
+        return new MatchWriter(engine, lines, step);
+    }
+
+    /** Runs each line through the engine and counts the outcomes in the step context for the batch screen. */
+    public static class MatchWriter implements ItemWriter<Long> {
+        private final MatchingEngine engine;
+        private final PaymentLineRepository lines;
+        private final StepExecution step;
+        private final MatchingEngine.Run run;
+
+        public MatchWriter(MatchingEngine engine, PaymentLineRepository lines, StepExecution step) {
+            this.engine = engine;
+            this.lines = lines;
+            this.step = step;
+            this.run = run(step);
+        }
+
+        @Override
+        public void write(Chunk<? extends Long> chunk) {
             ExecutionContext counts = step.getExecutionContext();
             for (Long id : chunk) {
                 PaymentLine line = lines.findById(id).orElse(null);
@@ -105,7 +122,7 @@ public class MatchingSteps {
                 Outcome outcome = engine.match(line, run);
                 counts.putLong(outcome.name(), counts.getLong(outcome.name(), 0L) + 1);
             }
-        };
+        }
     }
 
     @Bean

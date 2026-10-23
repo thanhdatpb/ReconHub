@@ -1,0 +1,23 @@
+<%@ page contentType="text/html; charset=UTF-8" %>
+<%@ taglib prefix="s" uri="/struts-tags" %>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OMS - Thời trang An Nhiên</title>
+  <link rel="stylesheet" href="<s:url value='/css/oms.css'/>">
+</head>
+<body>
+<div class="top">
+  <span class="logo">OMS</span> <span class="shop">Thời trang An Nhiên · Quản lý đơn hàng</span>
+  <s:if test="#session.omsUser != null">
+    <span class="who"><s:property value="#session.omsUser"/> · <a href="<s:url action='logout'/>">Thoát</a></span>
+  </s:if>
+</div>
+<div class="menu">
+  <a href="<s:url action='orders'/>">Danh sách đơn</a> | <a href="<s:url action='newOrder'/>">Tạo đơn mới</a>
+</div>
+<div class="page">
+<s:if test="hasActionErrors()"><div class="err"><s:actionerror/></div></s:if>
+<s:if test="hasActionMessages()"><div class="ok"><s:actionmessage/></div></s:if>

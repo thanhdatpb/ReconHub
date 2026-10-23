@@ -9,7 +9,7 @@ import { listMatchGroups, listReconDays } from '../api';
 import { useLoad } from '../state/session';
 import { Card, ErrorNote, Meter, Money, PageHeader, Pill, SourceBadge } from '../components/ui';
 import { baseOptions, barStyle, useChartTheme } from '../components/charts';
-import { ACTIVE_SOURCES, DEMO_NOW, daysAgo } from '../data/seed';
+import { META, daysAgo, now } from '../state/meta';
 import type { MatchGroup, ReconDay, SourceCode } from '../data/types';
 import { METHOD_META, SOURCE_LABEL, fmtDate, fmtDayMonth, fmtNumber, fmtPct } from '../lib/format';
 
@@ -38,7 +38,7 @@ export default function Results() {
   const [sources, setSources] = useState<SourceCode[]>([]);
   const [open, setOpen] = useState<ReconDay | null>(null);
   const from = range[0] ?? daysAgo(13);
-  const to = range[1] ?? range[0] ?? DEMO_NOW;
+  const to = range[1] ?? range[0] ?? now();
   const res = useLoad(() => listReconDays(from, to, sources), [from.getTime(), to.getTime(), sources.join()]);
   const rows = useMemo(() => [...(res.data ?? [])].sort((a, b) => b.date.getTime() - a.date.getTime() || a.source.localeCompare(b.source)), [res.data]);
 
@@ -72,8 +72,8 @@ export default function Results() {
     <>
       <PageHeader title="Kết quả đối soát" sub="Mỗi ngày, mỗi nguồn: bao nhiêu dòng khớp tự động, bao nhiêu phải xử lý tay, bao nhiêu còn mở." />
       <div className="filters">
-        <Calendar inputId="range" value={range} onChange={(e) => setRange((e.value as (Date | null)[]) ?? [daysAgo(13), daysAgo(0)])} selectionMode="range" readOnlyInput dateFormat="dd/mm/yy" maxDate={DEMO_NOW} showIcon inputStyle={{ width: '15.5rem' }} aria-label="Khoảng ngày" />
-        <MultiSelect inputId="res-source" value={sources} onChange={(e) => setSources(e.value)} options={ACTIVE_SOURCES.map((s) => ({ value: s, label: SOURCE_LABEL[s] }))} optionLabel="label" optionValue="value" placeholder="Mọi nguồn" maxSelectedLabels={2} selectedItemsLabel="{0} nguồn" showClear />
+        <Calendar inputId="range" value={range} onChange={(e) => setRange((e.value as (Date | null)[]) ?? [daysAgo(13), daysAgo(0)])} selectionMode="range" readOnlyInput dateFormat="dd/mm/yy" maxDate={now()} showIcon inputStyle={{ width: '15.5rem' }} aria-label="Khoảng ngày" />
+        <MultiSelect inputId="res-source" value={sources} onChange={(e) => setSources(e.value)} options={META.activeSources.map((s) => ({ value: s, label: SOURCE_LABEL[s] }))} optionLabel="label" optionValue="value" placeholder="Mọi nguồn" maxSelectedLabels={2} selectedItemsLabel="{0} nguồn" showClear />
         <span className="spacer" />
         <span className="small ink-2">
           {fmtNumber(totals.total)} dòng · tự động <strong>{totals.total ? fmtPct(totals.auto / totals.total) : '—'}</strong>

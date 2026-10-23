@@ -19,6 +19,10 @@ public interface ExceptionRepository extends JpaRepository<ReconException, Strin
 
     List<ReconException> findByStatusInAndRunDateBefore(Collection<ExceptionStatus> statuses, LocalDate before);
 
+    /** Open "delivered but unpaid" exceptions for an order; closed automatically when the money turns up. */
+    @Query("select e from ReconException e join e.orders o where o.code = :orderCode and e.type = vn.reconhub.core.domain.Enums.ExceptionType.UNPAID_ORDER and e.status in (vn.reconhub.core.domain.Enums.ExceptionStatus.OPEN, vn.reconhub.core.domain.Enums.ExceptionStatus.IN_REVIEW)")
+    List<ReconException> findOpenUnpaid(@Param("orderCode") String orderCode);
+
     @Query("select count(e) > 0 from ReconException e join e.payments p where p.id = :lineId")
     boolean existsForLine(@Param("lineId") Long lineId);
 

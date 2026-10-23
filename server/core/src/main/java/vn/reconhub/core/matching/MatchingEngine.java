@@ -3,6 +3,8 @@ package vn.reconhub.core.matching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.reconhub.core.config.ReconProperties;
+import vn.reconhub.core.domain.Enums.ActionKind;
+import vn.reconhub.core.domain.Enums.ExceptionStatus;
 import vn.reconhub.core.domain.Enums.ExceptionType;
 import vn.reconhub.core.domain.Enums.LineStatus;
 import vn.reconhub.core.domain.Enums.MatchMethod;
@@ -10,7 +12,9 @@ import vn.reconhub.core.domain.Enums.SourceKind;
 import vn.reconhub.core.domain.MatchGroup;
 import vn.reconhub.core.domain.Order;
 import vn.reconhub.core.domain.PaymentLine;
+import vn.reconhub.core.domain.ReconException;
 import vn.reconhub.core.domain.Source;
+import vn.reconhub.core.repo.ExceptionRepository;
 import vn.reconhub.core.repo.MatchGroupRepository;
 import vn.reconhub.core.repo.OrderRepository;
 import vn.reconhub.core.repo.PaymentLineRepository;
@@ -47,16 +51,18 @@ public class MatchingEngine {
     private final PaymentLineRepository lines;
     private final MatchGroupRepository groups;
     private final SourceRepository sources;
+    private final ExceptionRepository exceptions;
     private final ExceptionFactory exceptionFactory;
     private final FeeCalculator fees;
     private final ReconProperties props;
 
     public MatchingEngine(OrderRepository orders, PaymentLineRepository lines, MatchGroupRepository groups, SourceRepository sources,
-                          ExceptionFactory exceptionFactory, FeeCalculator fees, ReconProperties props) {
+                          ExceptionRepository exceptions, ExceptionFactory exceptionFactory, FeeCalculator fees, ReconProperties props) {
         this.orders = orders;
         this.lines = lines;
         this.groups = groups;
         this.sources = sources;
+        this.exceptions = exceptions;
         this.exceptionFactory = exceptionFactory;
         this.fees = fees;
         this.props = props;
@@ -132,6 +138,13 @@ public class MatchingEngine {
         for (PaymentLine l : matchedLines) g.addLine(l.getId(), l.getAmount());
         MatchGroup saved = groups.save(g);
         for (PaymentLine l : matchedLines) l.matched(saved.getId());
+        String ref = matchedLines.length == 0 ? "" : matchedLines[0].getExternalRef();
+        for (Order o : matchedOrders) {
+            for (ReconException unpaid : exceptions.findOpenUnpaid(o.getCode())) {
+                unpaid.close(ExceptionStatus.RESOLVED, run.at());
+                unpaid.log(run.at(), run.actor(), ActionKind.MATCHED, "Tiền về muộn (" + ref + ") đã khớp với đơn " + o.getCode() + "; tự đóng");
+            }
+        }
         return saved;
     }
 

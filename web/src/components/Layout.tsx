@@ -6,8 +6,9 @@ import { InputText } from 'primereact/inputtext';
 import { IconField } from 'primereact/iconfield';
 import { InputIcon } from 'primereact/inputicon';
 import { Sidebar } from 'primereact/sidebar';
-import { USERS } from '../data/seed';
-import { exceptionCounts } from '../api';
+import { MODE, exceptionCounts } from '../api';
+import { META } from '../state/meta';
+import type { User } from '../data/types';
 import { useLoad, useSession } from '../state/session';
 import { setPref, useThemePref, type Pref } from '../theme';
 import { initials } from '../lib/format';
@@ -51,7 +52,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
   },
 ];
 
-function Logo() {
+export function Logo() {
   return (
     <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden>
       <rect x="1" y="5" width="18" height="22" rx="3" fill="none" stroke="#5eead4" strokeWidth="2" />
@@ -117,7 +118,7 @@ const THEME_NEXT: Record<Pref, { next: Pref; icon: string; label: string }> = {
 export default function Layout() {
   const [drawer, setDrawer] = useState(false);
   const [q, setQ] = useState('');
-  const { user, setUserId } = useSession();
+  const { user, setUserId, signOut } = useSession();
   const pref = useThemePref();
   const loc = useLocation();
   const nav = useNavigate();
@@ -128,7 +129,7 @@ export default function Layout() {
     if (q.trim()) nav(`/exceptions?q=${encodeURIComponent(q.trim())}&tab=all`);
   };
 
-  const userTemplate = (u: (typeof USERS)[number] | null) =>
+  const userTemplate = (u: User | null) =>
     u && (
       <span className="user-opt">
         <span className="avatar">{initials(u.name)}</span>
@@ -160,9 +161,15 @@ export default function Layout() {
             </IconField>
           </form>
           <span className="spacer" />
-          <span className="demo-chip" title="Toàn bộ số liệu là dữ liệu mẫu do bộ sinh dữ liệu tạo ra">
-            Dữ liệu mẫu
-          </span>
+          {MODE === 'mock' ? (
+            <span className="demo-chip" title="Toàn bộ số liệu là dữ liệu mẫu do bộ sinh dữ liệu tạo ra">
+              Dữ liệu mẫu
+            </span>
+          ) : (
+            <span className="demo-chip" title={META.aiEnabled ? `Gợi ý và trợ lý dùng ${META.aiModel} qua Spring AI` : 'Chưa cấu hình ANTHROPIC_API_KEY: gợi ý dùng quy tắc'}>
+              {META.aiEnabled ? 'AI: LLM' : 'AI: quy tắc'}
+            </span>
+          )}
           <Button
             icon={THEME_NEXT[pref].icon}
             text
@@ -172,19 +179,26 @@ export default function Layout() {
             tooltipOptions={{ position: 'bottom' }}
             onClick={() => setPref(THEME_NEXT[pref].next)}
           />
-          <div className="user-pick">
-            <Dropdown
-              inputId="current-user"
-              value={user.id}
-              options={USERS}
-              optionValue="id"
-              optionLabel="name"
-              onChange={(e) => setUserId(e.value)}
-              valueTemplate={() => userTemplate(user)}
-              itemTemplate={(u) => userTemplate(u)}
-              aria-label="Đổi người dùng (để thử luồng duyệt)"
-            />
-          </div>
+          {MODE === 'mock' ? (
+            <div className="user-pick">
+              <Dropdown
+                inputId="current-user"
+                value={user.id}
+                options={META.users}
+                optionValue="id"
+                optionLabel="name"
+                onChange={(e) => setUserId(e.value)}
+                valueTemplate={() => userTemplate(user)}
+                itemTemplate={(u) => userTemplate(u)}
+                aria-label="Đổi người dùng (để thử luồng duyệt)"
+              />
+            </div>
+          ) : (
+            <div className="user-chip">
+              {userTemplate(user)}
+              <Button icon="pi pi-sign-out" text rounded aria-label="Đăng xuất" tooltip="Đăng xuất" tooltipOptions={{ position: 'bottom' }} onClick={signOut} />
+            </div>
+          )}
         </header>
         <main className="main">
           <Outlet />

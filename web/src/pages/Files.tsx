@@ -12,19 +12,9 @@ import { InputIcon } from 'primereact/inputicon';
 import { getFileErrors, listFiles, uploadFile } from '../api';
 import { useLoad, useSession } from '../state/session';
 import { Card, ErrorNote, Money, PageHeader, Pill, SourceBadge } from '../components/ui';
-import { ACTIVE_SOURCES, SOURCES } from '../data/seed';
+import { META } from '../state/meta';
 import type { FileStatus, ImportFile, SourceCode } from '../data/types';
 import { FILE_STATUS_META, SOURCE_LABEL, fmtDateTime, fmtNumber } from '../lib/format';
-
-async function sha256(file: File) {
-  try {
-    const buf = await file.arrayBuffer();
-    const hash = await crypto.subtle.digest('SHA-256', buf);
-    return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('');
-  } catch {
-    return `${file.name}-${file.size}-${file.lastModified}`;
-  }
-}
 
 function ErrorRows({ file }: { file: ImportFile }) {
   const res = useLoad(() => getFileErrors(file.id), [file.id]);
@@ -63,16 +53,20 @@ export default function Files() {
   const submit = async () => {
     if (!upFile) return;
     setBusy(true);
-    const checksum = await sha256(upFile);
-    const f = await uploadFile(upSource, upFile.name, checksum, user);
-    setBusy(false);
-    setUploadOpen(false);
-    setUpFile(null);
-    if (f.status === 'DUPLICATE') notify({ severity: 'warn', summary: 'File trùng, không nạp lại', detail: f.message, life: 6000 });
-    else notify({ severity: 'info', summary: 'Đã nhận file', detail: `Job nạp file #${f.jobExecutionId} đang chạy` });
+    try {
+      const f = await uploadFile(upSource, upFile, user);
+      setUploadOpen(false);
+      setUpFile(null);
+      if (f.status === 'DUPLICATE') notify({ severity: 'warn', summary: 'File trùng, không nạp lại', detail: f.message, life: 6000 });
+      else notify({ severity: 'info', summary: 'Đã nhận file', detail: f.jobExecutionId ? `Job nạp file #${f.jobExecutionId} đang chạy` : 'Đã chuyển cho batch nạp file; theo dõi trạng thái ngay trên bảng.' });
+    } catch (e) {
+      notify({ severity: 'error', summary: 'Không tải lên được', detail: (e as Error).message, life: 6000 });
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const sourceObj = SOURCES.find((s) => s.code === upSource)!;
+  const sourceObj = META.sources.find((s) => s.code === upSource)!;
 
   return (
     <>
@@ -86,7 +80,7 @@ export default function Files() {
           <InputIcon className="pi pi-search" />
           <InputText id="file-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tên file…" />
         </IconField>
-        <MultiSelect inputId="file-source" value={sources} onChange={(e) => setSources(e.value)} options={ACTIVE_SOURCES.map((s) => ({ value: s, label: SOURCE_LABEL[s] }))} optionLabel="label" optionValue="value" placeholder="Mọi nguồn" maxSelectedLabels={2} selectedItemsLabel="{0} nguồn" showClear />
+        <MultiSelect inputId="file-source" value={sources} onChange={(e) => setSources(e.value)} options={META.activeSources.map((s) => ({ value: s, label: SOURCE_LABEL[s] }))} optionLabel="label" optionValue="value" placeholder="Mọi nguồn" maxSelectedLabels={2} selectedItemsLabel="{0} nguồn" showClear />
         <Dropdown inputId="file-status" value={status} onChange={(e) => setStatus(e.value)} options={(Object.keys(FILE_STATUS_META) as FileStatus[]).map((s) => ({ value: s, label: FILE_STATUS_META[s].label }))} optionLabel="label" optionValue="value" placeholder="Mọi trạng thái" showClear />
       </div>
       {files.error && <ErrorNote message={files.error} />}
@@ -125,7 +119,7 @@ export default function Files() {
         <div className="stack" style={{ gap: 14 }}>
           <div>
             <label className="label" htmlFor="up-source" style={{ display: 'block', marginBottom: 6 }}>Nguồn</label>
-            <Dropdown inputId="up-source" value={upSource} onChange={(e) => setUpSource(e.value)} options={ACTIVE_SOURCES.map((s) => ({ value: s, label: SOURCE_LABEL[s] }))} optionLabel="label" optionValue="value" style={{ width: '100%' }} />
+            <Dropdown inputId="up-source" value={upSource} onChange={(e) => setUpSource(e.value)} options={META.activeSources.map((s) => ({ value: s, label: SOURCE_LABEL[s] }))} optionLabel="label" optionValue="value" style={{ width: '100%' }} />
             <div className="small muted" style={{ marginTop: 6 }}>
               Mẫu tên file: <span className="mono">{sourceObj.filePattern}</span> · bảng mã {sourceObj.encoding}
             </div>

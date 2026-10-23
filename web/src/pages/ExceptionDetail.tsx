@@ -20,7 +20,7 @@ import {
 } from '../api';
 import { useLoad, useSession } from '../state/session';
 import { Avatar, Card, ErrorNote, Loading, Meter, Money, PageHeader, Pill, SourceBadge } from '../components/ui';
-import { USERS, WRITE_OFF_APPROVAL_THRESHOLD } from '../data/seed';
+import { META } from '../state/meta';
 import type { AiCandidate, ExceptionAction, Order, PaymentLine, ReconException } from '../data/types';
 import { ACTION_LABEL, SOURCE_LABEL, STATUS_META, TYPE_META, fmtDateTime, fmtSla, fmtVnd } from '../lib/format';
 
@@ -349,7 +349,7 @@ export default function ExceptionDetail() {
                 <Dropdown
                   inputId="assignee"
                   value={e.assigneeId}
-                  options={[{ id: null, name: 'Chưa giao' }, ...USERS.filter((u) => u.role === 'ACCOUNTANT')]}
+                  options={[{ id: null, name: 'Chưa giao' }, ...META.users.filter((u) => u.role === 'ACCOUNTANT')]}
                   optionLabel="name"
                   optionValue="id"
                   onChange={(ev) => run(() => assignExceptions([e.id], ev.value, user), 'Đã cập nhật người xử lý')}
@@ -390,7 +390,7 @@ export default function ExceptionDetail() {
                 </div>
               )}
               <p className="small muted" style={{ margin: 0 }}>
-                Ghi giảm trên {fmtVnd(WRITE_OFF_APPROVAL_THRESHOLD)} cần người thứ hai duyệt. Mọi thao tác đều được ghi vào lịch sử bên dưới. Phiên bản bản ghi: {e.version}.
+                Ghi giảm trên {fmtVnd(META.writeOffApprovalThreshold)} cần người thứ hai duyệt. Mọi thao tác đều được ghi vào lịch sử bên dưới. Phiên bản bản ghi: {e.version}.
               </p>
             </div>
           </Card>
@@ -459,7 +459,7 @@ export default function ExceptionDetail() {
         footer={
           <>
             <Button label="Huỷ" text onClick={() => setDialog(null)} />
-            <Button label={Math.abs(e.diffAmount) > WRITE_OFF_APPROVAL_THRESHOLD ? 'Gửi đề nghị duyệt' : 'Ghi giảm'} loading={busy}
+            <Button label={Math.abs(e.diffAmount) > META.writeOffApprovalThreshold ? 'Gửi đề nghị duyệt' : 'Ghi giảm'} loading={busy}
               onClick={() => run(async () => {
                 const r = await requestWriteOff(e.id, e.version, reason, note, user);
                 if (!r.autoApproved) notify({ severity: 'info', summary: 'Đã gửi Kế toán trưởng duyệt' });
@@ -468,11 +468,11 @@ export default function ExceptionDetail() {
         }
       >
         <div className="stack" style={{ gap: 12 }}>
-          <div className={`notice ${Math.abs(e.diffAmount) > WRITE_OFF_APPROVAL_THRESHOLD ? 'tone-pending' : 'tone-info'}`}>
+          <div className={`notice ${Math.abs(e.diffAmount) > META.writeOffApprovalThreshold ? 'tone-pending' : 'tone-info'}`}>
             <i className="pi pi-info-circle" aria-hidden />
             <span>
               Số tiền ghi giảm: <strong className="num">{fmtVnd(Math.abs(e.diffAmount))}</strong>.{' '}
-              {Math.abs(e.diffAmount) > WRITE_OFF_APPROVAL_THRESHOLD ? 'Vượt ngưỡng 50.000 ₫ nên cần Kế toán trưởng duyệt.' : 'Không vượt ngưỡng 50.000 ₫ nên được ghi giảm ngay.'} Bút toán: Nợ 811 / Có 131.
+              {Math.abs(e.diffAmount) > META.writeOffApprovalThreshold ? 'Vượt ngưỡng 50.000 ₫ nên cần Kế toán trưởng duyệt.' : 'Không vượt ngưỡng 50.000 ₫ nên được ghi giảm ngay.'} Bút toán: Nợ 811 / Có 131.
             </span>
           </div>
           <div>

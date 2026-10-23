@@ -49,6 +49,10 @@ public class ReportService {
         return Instant.now(clock);
     }
 
+    public java.time.ZoneId zone() {
+        return clock.getZone();
+    }
+
     public List<Rows.DayStat> dayStats(LocalDate from, LocalDate to, List<String> sources) {
         return mapper.dayStats(from, to, sources);
     }

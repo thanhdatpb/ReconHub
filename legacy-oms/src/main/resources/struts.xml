@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE struts PUBLIC "-//Apache Software Foundation//DTD Struts Configuration 6.0//EN" "https://struts.apache.org/dtds/struts-6.0.dtd">
+<struts>
+  <constant name="struts.devMode" value="false"/>
+  <constant name="struts.i18n.encoding" value="UTF-8"/>
+  <constant name="struts.locale" value="vi_VN"/>
+  <constant name="struts.custom.i18n.resources" value="messages"/>
+  <constant name="struts.ui.theme" value="simple"/>
+  <constant name="struts.enable.DynamicMethodInvocation" value="false"/>
+
+  <package name="oms" extends="struts-default" namespace="/">
+    <interceptors>
+      <interceptor name="login" class="vn.shop.oms.web.LoginInterceptor"/>
+      <interceptor-stack name="secure">
+        <interceptor-ref name="login"/>
+        <interceptor-ref name="defaultStack"/>
+      </interceptor-stack>
+    </interceptors>
+    <default-interceptor-ref name="secure"/>
+    <default-action-ref name="orders"/>
+
+    <global-results>
+      <result name="login" type="redirectAction">login</result>
+      <result name="error">/WEB-INF/jsp/error.jsp</result>
+    </global-results>
+
+    <action name="login" class="vn.shop.oms.action.LoginAction" method="form">
+      <interceptor-ref name="defaultStack"/>
+      <result name="input">/WEB-INF/jsp/login.jsp</result>
+    </action>
+    <action name="doLogin" class="vn.shop.oms.action.LoginAction">
+      <interceptor-ref name="defaultStack"/>
+      <result name="input">/WEB-INF/jsp/login.jsp</result>
+      <result type="redirectAction">orders</result>
+    </action>
+    <action name="logout" class="vn.shop.oms.action.LoginAction" method="logout">
+      <interceptor-ref name="defaultStack"/>
+    </action>
+
+    <action name="orders" class="vn.shop.oms.action.OrderListAction">
+      <result>/WEB-INF/jsp/orders.jsp</result>
+    </action>
+    <action name="order" class="vn.shop.oms.action.OrderAction" method="view">
+      <result>/WEB-INF/jsp/order.jsp</result>
+    </action>
+    <action name="newOrder" class="vn.shop.oms.action.OrderAction" method="form">
+      <result name="input">/WEB-INF/jsp/order-form.jsp</result>
+    </action>
+    <action name="createOrder" class="vn.shop.oms.action.OrderAction" method="create">
+      <result name="input">/WEB-INF/jsp/order-form.jsp</result>
+      <result type="redirectAction">
+        <param name="actionName">order</param>
+        <param name="code">${code}</param>
+      </result>
+    </action>
+    <action name="updateStatus" class="vn.shop.oms.action.OrderAction" method="status">
+      <result type="redirectAction">
+        <param name="actionName">order</param>
+        <param name="code">${code}</param>
+      </result>
+    </action>
+  </package>
+</struts>

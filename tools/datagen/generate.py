@@ -2,7 +2,7 @@
 
 Each partner file follows that partner's own format (column names, date and number formats, CSV or XLSX,
 Windows-1258 for the bank). A small, controlled share of lines carries a realistic problem (typo in the
-transfer description, short payment, unannounced fee change, missing payout, duplicate statement...).
+transfer description, short payment, unannounced fee change, missing or late payout, duplicate statement...).
 truth.csv records, for every line, the orders it really belongs to, so matching quality can be measured.
 
 Usage:
@@ -211,8 +211,13 @@ class Generator:
             if not self.has_file(o.pay_via, day):
                 continue
             roll = self.r.random()
+            late = False
             if roll < 0.015:
-                continue  # payout never sent -> UNPAID_ORDER after 7 days
+                if roll < 0.006 and self.has_file(o.pay_via, day + timedelta(days=9)):
+                    # paid nine days late: UNPAID_ORDER is raised first, then closed when the money arrives
+                    day, late, roll = day + timedelta(days=9), True, 1.0
+                else:
+                    continue  # payout never sent -> UNPAID_ORDER after 7 days
             fee = expected_fee(o.pay_via, o, o.cod)
             anomaly, note, paid = "NONE", "Giao thành công" if o.pay_via == "GHN" else "Đã đối soát", o.cod
             if o.pay_via == "GHN" and o.remote_area:
@@ -234,6 +239,8 @@ class Generator:
             elif roll < 0.035:
                 paid = o.cod - 500
                 anomaly = "ROUNDING"
+            if late and anomaly == "NONE":
+                anomaly = "LATE_PAYOUT"
             net = paid - fee
             if o.pay_via == "GHN":
                 values = [o.tracking, o.code, f"{day:%d/%m/%Y}", vnd_dots(o.cod), vnd_dots(fee), vnd_dots(net), note]

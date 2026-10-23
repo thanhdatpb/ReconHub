@@ -68,14 +68,14 @@
         <when test="q.assignee == 'none'">and e.assignee_id is null</when>
         <when test="q.assignee != null and q.assignee != 'all'">and e.assignee_id = #{q.assignee}</when>
       </choose>
-      <if test="q.overdueOnly">and e.status in ('OPEN', 'IN_REVIEW') and e.sla_due_at &lt; #{q.now}</if>
+      <if test="q.overdueOnly">and e.status = 'OPEN' and e.sla_due_at &lt; #{q.now}</if>
       <if test="q.like() != null">
         and (upper(e.id) like #{q.like()} or upper(o.code) like #{q.like()} or upper(o.customer_name) like #{q.like()}
              or upper(o.tracking_code) like #{q.like()} or upper(p.external_ref) like #{q.like()} or upper(p.description) like #{q.like()})
       </if>
     </where>
     order by
-    <if test="q.tab == 'todo'">e.sla_due_at asc,</if>
+    <if test="q.tab == 'todo'">case when e.status = 'OPEN' then 0 else 1 end, e.sla_due_at asc,</if>
     e.created_at desc, e.id desc
     limit #{q.limit}
   </select>
@@ -85,7 +85,7 @@
            count(*) filter (where status = 'WRITE_OFF_PENDING')                             as pending,
            count(*) filter (where status in ('RESOLVED', 'WRITTEN_OFF'))                    as done,
            count(*)                                                                          as "all",
-           count(*) filter (where status in ('OPEN', 'IN_REVIEW') and sla_due_at &lt; #{now}) as overdue
+           count(*) filter (where status = 'OPEN' and sla_due_at &lt; #{now})                   as overdue
     from recon_exceptions
   </select>
 
