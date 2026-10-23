@@ -33,7 +33,8 @@ import type {
   SourceCode,
   User,
 } from '../data/types';
-import { SOURCE_LABEL, fmtVnd, fmtPct, fmtVndShort } from '../lib/format';
+import { SOURCE_LABEL, fmtDate, fmtTime, fmtVnd, fmtPct, fmtVndShort } from '../lib/format';
+import { needsAction } from '../lib/batch';
 import type { Meta } from '../state/meta';
 
 export const MODE = 'mock' as const;
@@ -153,7 +154,7 @@ export async function getDashboard() {
     feeDiffCount: feeOct.length,
     trend,
     bySource,
-    failedJobs: BATCH.filter((b) => b.status === 'FAILED' && !b.restartedAs),
+    failedJobs: BATCH.map(resolved).filter(needsAction).slice(0, 5),
     arrivals: fileArrivals(),
     latest: open.filter((e) => e.status === 'OPEN').slice(0, 6),
   };
@@ -446,15 +447,60 @@ function nextExecId() {
   return Math.max(...BATCH.map((b) => b.id)) + 1;
 }
 
+/** The business date is the yyyyMMdd stamp in the file name, as FileRegistrar reads it; else the day it arrived. */
+function businessDay(f: ImportFile) {
+  const m = /(\d{4})(\d{2})(\d{2})/.exec(f.fileName);
+  return m ? `${m[1]}${m[2]}${m[3]}` : startOfDay(f.receivedAt).toISOString();
+}
+
+/** Same rule as ReplacementFiles on the server: same source and business date, received later, loaded; the earliest wins. */
+function replacementOf(b: JobExecution) {
+  if (b.job !== 'fileIngestionJob' || (b.status !== 'FAILED' && b.status !== 'STOPPED')) return undefined;
+  const failed = FILES.find((f) => f.jobExecutionId === b.id || f.fileName === b.params.file);
+  if (!failed) return undefined;
+  const r = FILES
+    .filter((f) => f.source === failed.source && businessDay(f) === businessDay(failed) && f.receivedAt > failed.receivedAt)
+    .filter((f) => f.status === 'COMPLETED' || f.status === 'COMPLETED_WITH_ERRORS')
+    .sort((a, c) => a.receivedAt.getTime() - c.receivedAt.getTime())[0];
+  return r && { fileId: r.id, fileName: r.fileName, receivedAt: r.receivedAt };
+}
+
+const ACKS = new Map<number, NonNullable<JobExecution['acknowledged']>>();
+
+function resolved(b: JobExecution): JobExecution {
+  return { ...b, supersededBy: replacementOf(b), acknowledged: ACKS.get(b.id) };
+}
+
 export async function listExecutions() {
   await wait();
-  return BATCH.map((b) => ({ ...b }));
+  return BATCH.map(resolved);
+}
+
+export async function acknowledgeExecution(id: number, note: string, actor: User): Promise<JobExecution> {
+  await wait(250);
+  const b = BATCH.find((x) => x.id === id);
+  if (!b) throw new ApiError(`Không có lần chạy #${id}`);
+  const text = note.trim();
+  if (!text) throw new ApiError('Cần nhập ghi chú: lỗi này đã được xử lý thế nào');
+  if (text.length > 500) throw new ApiError('Ghi chú dài tối đa 500 ký tự');
+  if (b.status !== 'FAILED' && b.status !== 'STOPPED') {
+    throw new ApiError(`Lần chạy #${id} đang ở trạng thái ${b.status}, chỉ đánh dấu được lần chạy lỗi (FAILED) hoặc bị dừng (STOPPED)`);
+  }
+  const prev = ACKS.get(id);
+  if (prev) throw new ApiError(`Lần chạy #${id} đã được ${prev.byName} đánh dấu đã xử lý lúc ${fmtTime(prev.at)} ${fmtDate(prev.at)}`);
+  ACKS.set(id, { by: actor.id, byName: actor.name, at: now(), note: text });
+  notify();
+  return resolved(b);
 }
 
 export async function restartExecution(id: number): Promise<{ message: string }> {
   await wait(300);
   const old = BATCH.find((b) => b.id === id);
   if (!old) throw new ApiError('Không tìm thấy lần chạy');
+  const replacement = replacementOf(old);
+  if (replacement) {
+    throw new ApiError(`Không chạy lại lần chạy #${id}: file thay thế ${replacement.fileName} đã nạp thành công lúc ${fmtTime(replacement.receivedAt)} ${fmtDate(replacement.receivedAt)}. Chạy lại sẽ nạp trùng tiền của ngày này.`);
+  }
   const fresh: JobExecution = {
     id: nextExecId(), job: old.job, params: { ...old.params, restartOf: `#${old.id}` }, status: 'STARTED', startTime: now(), endTime: null,
     steps: old.steps.filter((s) => s.status === 'COMPLETED').map((s) => ({ ...s, read: 0, write: 0, commits: 0, durationMs: 0, exitMessage: 'Bỏ qua: đã hoàn tất ở lần chạy trước' })),
@@ -501,15 +547,18 @@ export async function explainExecution(id: number): Promise<BatchExplanation> {
     };
   }
   if (ex?.job === 'fileIngestionJob') {
+    const replacement = replacementOf(ex);
     return {
       cause: 'File có 214 dòng không đọc được cột "Ngày": đối tác đổi định dạng từ "dd-MM-yyyy HH:mm" sang dạng "20-10-2026 14h05". Số dòng lỗi vượt ngưỡng 100, nên job dừng để tránh nạp thiếu dữ liệu.',
       evidence: [
-        'FlatFileParseException: Parsing error at line: 2 in resource=[GHTK_COD_20261020.csv], input=[...,"20-10-2026 09h12",...]',
+        `FlatFileParseException: Parsing error at line: 2 in resource=[${ex.params.file ?? ''}], input=[...,"20-10-2026 09h12",...]`,
         'FlatFileParseException: Parsing error at line: 3 ... input=[...,"20-10-2026 09h12",...]',
         'SkipLimitExceededException: Skip limit of 100 exceeded',
       ],
       steps: [
-        'Không cần chạy lại: GHTK đã gửi file _v2 đúng định dạng lúc 14:37 và đã nạp thành công.',
+        replacement
+          ? `Không cần chạy lại: file thay thế ${replacement.fileName} đã nạp thành công lúc ${fmtTime(replacement.receivedAt)} ${fmtDate(replacement.receivedAt)}.`
+          : 'Yêu cầu đối tác gửi lại file đúng định dạng, hoặc sửa định dạng ngày ở Cấu hình nguồn rồi bấm Chạy lại.',
         'Nếu đối tác giữ định dạng mới, thêm mẫu ngày dd-MM-yyyy HH\'h\'mm vào cấu hình nguồn GHTK.',
       ],
     };

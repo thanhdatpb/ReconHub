@@ -293,6 +293,10 @@ export async function runJob(job: string): Promise<{ message: string }> {
 
 export const explainExecution = (id: number) => request<BatchExplanation>('POST', `/ai/batch/${id}/explain`);
 
+/** "Đánh dấu đã xử lý": the server records the signed-in user and the time; the note is required. */
+export const acknowledgeExecution = (id: number, note: string, _actor: User) =>
+  mutate<JobExecution>('POST', `/batch/executions/${id}/acknowledge`, { note });
+
 // ---------------------------------------------------------------- assistant
 
 export const ask = (question: string) => request<AssistantAnswer>('POST', '/ai/ask', { question });

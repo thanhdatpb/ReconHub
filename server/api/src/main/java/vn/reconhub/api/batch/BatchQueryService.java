@@ -134,7 +134,7 @@ public class BatchQueryService implements JobStatusProvider {
         String fileId = params.get("fileId");
         if (fileId == null) return null;
         return replacements.replacementFor(Long.parseLong(fileId))
-                .map(f -> new Views.Superseded(f.getId(), f.getFileName(), f.getReceivedAt())).orElse(null);
+                .map(f -> new Views.Superseded(String.valueOf(f.getId()), f.getFileName(), f.getReceivedAt())).orElse(null);
     }
 
     private Map<Long, Views.Acknowledgement> acknowledgements(List<Long> executionIds) {

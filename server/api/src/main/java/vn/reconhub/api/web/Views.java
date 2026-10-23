@@ -55,7 +55,7 @@ public final class Views {
     public record StepView(String name, String status, long read, long write, long skip, long commits, long durationMs, String exitMessage) {}
 
     /** The file that loaded after this failed one: same source and business date, received later. */
-    public record Superseded(long fileId, String fileName, Instant receivedAt) {}
+    public record Superseded(String fileId, String fileName, Instant receivedAt) {}
 
     /** Someone marked the failed run as handled. {@code by} is the user id, {@code byName} the full name. */
     public record Acknowledgement(String by, String byName, Instant at, String note) {}
