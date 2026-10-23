@@ -91,7 +91,9 @@ error or refusal falls back to the rule result.
 | `web` | React 19 + PrimeReact console; runs on sample data (`npm run dev`) or the API (`npm run dev:http`) |
 | `legacy-oms` | The shop's old order system: Struts 6, JSP, MyBatis, JNDI pool on Tomcat 9 |
 | `tools/datagen` | Sample data generator with ground truth, and `eval_matching.py` (precision of automatic matching) |
-| `docs` | [Architecture](docs/architecture.md), [runbook](docs/runbook.md) |
+| `docs` | [Architecture](docs/architecture.md), [runbook](docs/runbook.md), [roadmap](docs/roadmap.md), [Claude Code prompts](docs/claude-code-prompts.md) |
+| `scripts/verify.sh` | Builds and tests every module inside Docker (no local JDK or Node needed) |
+| `CLAUDE.md` | Project rules for Claude Code |
 
 ## Development
 
