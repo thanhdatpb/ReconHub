@@ -69,8 +69,7 @@ public class DashboardService {
         List<Rows.AgingRow> aging = reports.aging();
         Rows.ExceptionCounts counts = reports.exceptionCounts();
         Rows.FeeDiffTotal fee = reports.feeDiffThisMonth();
-        List<Views.JobView> failed = batch.recentViews(300).stream()
-                .filter(j -> "FAILED".equals(j.status()) && j.restartedAs() == null).limit(5).toList();
+        List<Views.JobView> failed = batch.recentViews(300).stream().filter(Views.JobView::needsAction).limit(5).toList();
         List<Views.ExceptionView> latest = reports.searchExceptions(new ExceptionQuery("todo", null, null, "all", false, null, now, 500)).stream()
                 .filter(r -> "OPEN".equals(r.status))
                 .sorted(Comparator.comparing((Rows.ExceptionRow r) -> r.createdAt).reversed())

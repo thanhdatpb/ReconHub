@@ -54,8 +54,25 @@ public final class Views {
 
     public record StepView(String name, String status, long read, long write, long skip, long commits, long durationMs, String exitMessage) {}
 
+    /** The file that loaded after this failed one: same source and business date, received later. */
+    public record Superseded(String fileId, String fileName, Instant receivedAt) {}
+
+    /** Someone marked the failed run as handled. {@code by} is the user id, {@code byName} the full name. */
+    public record Acknowledgement(String by, String byName, Instant at, String note) {}
+
+    /** {@code restartedAs}, {@code supersededBy} and {@code acknowledged} are only set on failed or stopped runs. */
     public record JobView(long id, String job, Map<String, String> params, String status, Instant startTime, Instant endTime,
-                          List<StepView> steps, String exitMessage, Long restartedAs) {}
+                          List<StepView> steps, String exitMessage, Long restartedAs, Superseded supersededBy,
+                          Acknowledgement acknowledged) {
+        public static boolean failedOrStopped(String status) {
+            return "FAILED".equals(status) || "STOPPED".equals(status);
+        }
+
+        /** Failed or stopped, and nobody has dealt with it yet: not restarted, no replacement file, not acknowledged. */
+        public boolean needsAction() {
+            return failedOrStopped(status) && restartedAs == null && supersededBy == null && acknowledged == null;
+        }
+    }
 
     /** One tile of "today's file arrivals": received | late | waiting | due | none. */
     public record Arrival(String source, String state, Instant at, Long rows, Long minutes, String expected) {}

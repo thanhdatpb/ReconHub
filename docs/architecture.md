@@ -77,6 +77,18 @@ its last commit. Rows skipped by `parseAndStageStep` are kept in `file_errors`, 
 rolled back when the skip limit was reached. Executions left `STARTED` by a crash are marked `FAILED` at start-up so
 they can be restarted. All entry points share one lock, so jobs never overlap.
 
+A failed or stopped run needs action until one of three things happens, and only those that still need it are
+warned about on the dashboard (`JobView.needsAction`):
+
+- it was restarted (`restartedAs`, a later execution of the same job instance);
+- it was replaced (`supersededBy`): for a file, another file of the same source and business date, received later,
+  loaded as `COMPLETED` or `COMPLETED_WITH_ERRORS`. The rule lives only in `ReplacementFiles` (core) and is used by the
+  dashboard, the batch monitor, the failure explanation and the assistant. A replaced run cannot be restarted (400),
+  because loading both files would count the day's money twice;
+- someone acknowledged it (`acknowledged`): `POST /api/batch/executions/{id}/acknowledge` with a required note, any
+  role, `FAILED` or `STOPPED` only, once per execution (a second one is 409). Stored in `batch_execution_acks` (V5)
+  with the user and time. The note is shown in the monitor but not sent to the model.
+
 ## Security
 
 - `POST /api/auth/login` checks the bcrypt password and returns an HS256 JWT (10 hours) with the user id and role.

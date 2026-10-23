@@ -229,7 +229,12 @@ export interface JobExecution {
   endTime: Date | null;
   steps: StepExecution[];
   exitMessage?: string;
+  /** restartedAs, supersededBy and acknowledged are only set on failed or stopped runs. */
   restartedAs?: number;
+  /** A failed file's replacement: same source and business date, received later, loaded. */
+  supersededBy?: { fileId: string; fileName: string; receivedAt: Date };
+  /** "Đánh dấu đã xử lý": who (user id and name), when, and the required note. */
+  acknowledged?: { by: string; byName: string; at: Date; note: string };
 }
 
 export interface BatchExplanation {

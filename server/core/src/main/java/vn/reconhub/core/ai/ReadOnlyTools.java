@@ -126,7 +126,8 @@ public class ReadOnlyTools {
         table = new AssistantService.Table(List.of("Lần chạy", "Job", "Trạng thái", "Bắt đầu"),
                 lines.stream().map(l -> List.<Object>of("#" + l.id(), l.job(), l.status(), l.started())).toList());
         return String.join("\n", lines.stream().map(l -> "#" + l.id() + " " + l.job() + " " + l.status() + " " + l.started()
-                + (l.exitMessage() == null || l.exitMessage().isBlank() ? "" : " lỗi: " + l.exitMessage())).toList());
+                + (l.exitMessage() == null || l.exitMessage().isBlank() ? "" : " lỗi: " + l.exitMessage())
+                + (l.handled() == null ? "" : " (không cần xử lý thêm: " + l.handled() + ")")).toList());
     }
 
     private boolean canSeeMoney() {

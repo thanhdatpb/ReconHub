@@ -862,9 +862,7 @@ function genBatch(): JobExecution[] {
       ],
     });
   }
-  const ghtkFailed = list.find((x) => x.job === 'fileIngestionJob' && x.status === 'FAILED');
-  const ghtkFixed = list.find((x) => x.job === 'fileIngestionJob' && x.params.file?.includes('_v2'));
-  if (ghtkFailed && ghtkFixed) ghtkFailed.restartedAs = ghtkFixed.id;
+  // The failed GHTK file is not restarted: its _v2 replacement loaded later, which the mock API reports as supersededBy.
   // Renumber in start order so execution ids grow with time, as in BATCH_JOB_EXECUTION.
   list.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
   const remap = new Map<number, number>();

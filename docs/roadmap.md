@@ -24,7 +24,7 @@ Quy tắc chung cho mọi mục: xem [CLAUDE.md](../CLAUDE.md) (cách build bằ
 
 ## Giai đoạn 1: khép kín các luồng xử lý (khoảng 1–2 tuần)
 
-### [ ] 1.1 Cảnh báo job lỗi biết tự tắt
+### [x] 1.1 Cảnh báo job lỗi biết tự tắt
 
 **Mục tiêu:** Tổng quan chỉ cảnh báo những lần chạy lỗi còn cần người xử lý.
 
