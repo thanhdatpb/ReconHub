@@ -22,6 +22,11 @@ public final class Messages {
         public static BatchCommand run(String job, String by) {
             return new BatchCommand("RUN", null, null, job, Map.of(), by);
         }
+
+        /** After a fee schedule is approved: re-check the open fee differences it may explain (feeRevalidationJob). */
+        public static BatchCommand revalidateFees(long scheduleId, String by) {
+            return new BatchCommand("REVALIDATE_FEES", null, null, "feeRevalidationJob", Map.of("scheduleId", String.valueOf(scheduleId)), by);
+        }
     }
 
     public record MailMessage(String to, String subject, String body, String relatedId) {}
