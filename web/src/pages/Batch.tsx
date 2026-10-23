@@ -5,7 +5,7 @@ import { Column } from 'primereact/column';
 import { Dropdown } from 'primereact/dropdown';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
-import { explainExecution, listExecutions, restartExecution } from '../api';
+import { explainExecution, listExecutions, restartExecution, runJob } from '../api';
 import { useLoad, useSession } from '../state/session';
 import { Card, ErrorNote, Loading, PageHeader, Pill } from '../components/ui';
 import { META } from '../state/meta';
@@ -13,6 +13,8 @@ import type { BatchStatus, JobExecution, JobName, StepExecution } from '../data/
 import { BATCH_STATUS_META, fmtDateTime, fmtDuration, fmtNumber } from '../lib/format';
 
 const JOBS: JobName[] = ['fileIngestionJob', 'matchingJob', 'feeValidationJob', 'agingAndReportJob', 'archiveAndPurgeJob'];
+/** Jobs that can be started by hand; file ingestion starts when a file arrives. */
+const RUNNABLE = ['matchingJob', 'feeValidationJob', 'agingAndReportJob', 'archiveAndPurgeJob'];
 
 function Explain({ exec }: { exec: JobExecution }) {
   const res = useLoad(() => explainExecution(exec.id), [exec.id]);
@@ -97,6 +99,15 @@ export default function Batch() {
   if (res.error) return <ErrorNote message={res.error} />;
   const rows = (res.data ?? []).filter((x) => (!job || x.job === job) && (!status || x.status === status));
 
+  const runNow = async (name: string) => {
+    try {
+      const r = await runJob(name);
+      notify({ severity: 'info', summary: name, detail: r.message });
+    } catch (e) {
+      notify({ severity: 'error', summary: `Không chạy được ${name}`, detail: (e as Error).message, life: 6000 });
+    }
+  };
+
   const restart = async (x: JobExecution) => {
     try {
       const r = await restartExecution(x.id);
@@ -116,6 +127,9 @@ export default function Batch() {
               <div className="mono small cell-main">{s.job}</div>
               <div className="small ink-2">{s.human}</div>
               <div className="small muted mono">{s.cron}</div>
+              {RUNNABLE.includes(s.job) && (
+                <Button label="Chạy ngay" icon="pi pi-play" size="small" text style={{ padding: '2px 0', marginTop: 4 }} onClick={() => runNow(s.job)} />
+              )}
             </div>
           ))}
         </div>

@@ -8,8 +8,8 @@ import vn.reconhub.core.messaging.Messages;
 import vn.reconhub.core.messaging.Messages.BatchCommand;
 
 /**
- * Commands from the API. A command that throws is rolled back to the queue and redelivered, so commands are
- * written to be safe to repeat (an INGEST for a file that already ran is ignored, a RESTART of a finished run does nothing).
+ * Commands from the API. Commands are safe to repeat (an INGEST for a file that already ran is ignored, a RESTART of a
+ * finished run does nothing). Rejected commands are logged; other errors (database down) roll the message back for redelivery.
  */
 @Component
 public class BatchCommandListener {
@@ -24,14 +24,19 @@ public class BatchCommandListener {
     @JmsListener(destination = Messages.BATCH_COMMANDS)
     public void onCommand(BatchCommand command) {
         log.info("Command {} from {}", command.kind(), command.requestedBy());
-        pipeline.exclusive(() -> {
-            switch (command.kind()) {
-                case "INGEST" -> pipeline.ingestRegistered(command.fileId());
-                case "RESTART" -> pipeline.restart(command.executionId());
-                case "RUN" -> pipeline.runNow(command.job(), command.requestedBy());
-                default -> log.warn("Unknown command {}", command.kind());
-            }
-            return null;
-        });
+        try {
+            pipeline.exclusive(() -> {
+                switch (command.kind()) {
+                    case "INGEST" -> pipeline.ingestRegistered(command.fileId());
+                    case "RESTART" -> pipeline.restart(command.executionId());
+                    case "RUN" -> pipeline.runNow(command.job(), command.requestedBy());
+                    default -> log.warn("Unknown command {}", command.kind());
+                }
+                return null;
+            });
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            // A command that cannot run (unknown file, job already complete) will not succeed on redelivery either.
+            log.error("Command {} from {} rejected: {}", command.kind(), command.requestedBy(), e.getMessage());
+        }
     }
 }

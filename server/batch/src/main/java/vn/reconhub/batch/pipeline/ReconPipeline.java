@@ -198,18 +198,25 @@ public class ReconPipeline {
         return launch(MatchingSteps.FEE_JOB, runParams(at, runDate, trigger));
     }
 
+    /** The scheduled report is one job instance per day, so a failed one is restarted rather than run twice. */
     public JobExecution report(LocalDate asOf) {
-        return launch(ReportSteps.JOB, new JobParametersBuilder()
-                .addString("asOf", asOf.toString())
-                .addString("recipients", props.getReportRecipients(), false)
-                .toJobParameters());
+        return launch(ReportSteps.JOB, reportParams(asOf).toJobParameters());
     }
 
     public JobExecution housekeeping(LocalDate runDate) {
-        return launch(HousekeepingSteps.JOB, new JobParametersBuilder()
+        return launch(HousekeepingSteps.JOB, housekeepingParams(runDate).toJobParameters());
+    }
+
+    private JobParametersBuilder reportParams(LocalDate asOf) {
+        return new JobParametersBuilder()
+                .addString("asOf", asOf.toString())
+                .addString("recipients", props.getReportRecipients(), false);
+    }
+
+    private JobParametersBuilder housekeepingParams(LocalDate runDate) {
+        return new JobParametersBuilder()
                 .addString("runDate", runDate.toString())
-                .addString("olderThanDays", "90", false)
-                .toJobParameters());
+                .addString("olderThanDays", "90", false);
     }
 
     public JobExecution seedOrders(Path csv) {
@@ -226,8 +233,9 @@ public class ReconPipeline {
         return switch (job) {
             case MatchingSteps.MATCHING_JOB -> matching(now, today, "chạy tay bởi " + by);
             case MatchingSteps.FEE_JOB -> feeValidation(now, today, "chạy tay bởi " + by);
-            case ReportSteps.JOB -> report(today);
-            case HousekeepingSteps.JOB -> housekeeping(today);
+            // a manual run is a new instance (requestedAt), so it works even after today's scheduled run completed
+            case ReportSteps.JOB -> launch(ReportSteps.JOB, reportParams(today).addString("requestedAt", now.toString()).toJobParameters());
+            case HousekeepingSteps.JOB -> launch(HousekeepingSteps.JOB, housekeepingParams(today).addString("requestedAt", now.toString()).toJobParameters());
             default -> throw new IllegalArgumentException("Job " + job + " không chạy tay được");
         };
     }

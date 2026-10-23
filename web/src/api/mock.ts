@@ -474,6 +474,11 @@ export async function restartExecution(id: number): Promise<{ message: string }>
   return { message: `Lần chạy mới #${fresh.id}. Các bước đã xong được bỏ qua.` };
 }
 
+export async function runJob(job: string): Promise<{ message: string }> {
+  await wait(300);
+  return { message: `Bản mẫu không chạy ${job} thật; khi nối với backend, lệnh được gửi cho dịch vụ batch qua JMS.` };
+}
+
 export async function explainExecution(id: number): Promise<BatchExplanation> {
   await wait(1300);
   const ex = BATCH.find((b) => b.id === id);

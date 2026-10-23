@@ -1,0 +1,9 @@
+spring:
+  config:
+    import: classpath:reconhub-core.yml
+  jms:
+    listener:
+      auto-startup: false
+reconhub:
+  demo:
+    enabled: false

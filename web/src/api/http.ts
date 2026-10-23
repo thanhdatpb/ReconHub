@@ -284,6 +284,13 @@ export async function restartExecution(id: number): Promise<{ message: string }>
   return { message: `${r.message}. Spring Batch bỏ qua các bước đã xong và chạy tiếp từ bước lỗi.` };
 }
 
+export async function runJob(job: string): Promise<{ message: string }> {
+  const r = await request<{ message: string }>('POST', `/batch/jobs/${job}/run`);
+  followBackgroundWork();
+  notify();
+  return r;
+}
+
 export const explainExecution = (id: number) => request<BatchExplanation>('POST', `/ai/batch/${id}/explain`);
 
 // ---------------------------------------------------------------- assistant
