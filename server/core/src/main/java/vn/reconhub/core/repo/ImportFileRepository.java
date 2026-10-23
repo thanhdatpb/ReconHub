@@ -21,4 +21,7 @@ public interface ImportFileRepository extends JpaRepository<ImportFile, Long> {
     List<ImportFile> findByStatusAndJobExecutionIdIsNullAndReceivedAtBefore(FileStatus status, Instant before);
 
     long countBySourceCodeAndBusinessDateGreaterThanEqual(String sourceCode, java.time.LocalDate from);
+
+    Optional<ImportFile> findFirstBySourceCodeAndBusinessDateAndReceivedAtAfterAndStatusInOrderByReceivedAtAsc(
+            String sourceCode, java.time.LocalDate businessDate, Instant after, List<FileStatus> statuses);
 }
