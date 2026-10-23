@@ -43,6 +43,12 @@
     <action name="order" class="vn.shop.oms.action.OrderAction" method="view">
       <result>/WEB-INF/jsp/order.jsp</result>
     </action>
+    <action name="orderQr" class="vn.shop.oms.action.OrderQrAction">
+      <result type="stream">
+        <param name="contentType">image/png</param>
+        <param name="inputName">image</param>
+      </result>
+    </action>
     <action name="newOrder" class="vn.shop.oms.action.OrderAction" method="form">
       <result name="input">/WEB-INF/jsp/order-form.jsp</result>
     </action>

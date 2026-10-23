@@ -119,6 +119,7 @@ services:
   legacy-oms:
     build: legacy-oms
     environment:
+      <<: *vietqr
       CATALINA_OPTS: >-
         -Doms.db.url=jdbc:postgresql://postgres:5432/reconhub
         -Doms.db.user=reconhub

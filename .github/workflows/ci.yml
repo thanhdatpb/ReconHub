@@ -80,6 +80,9 @@ jobs:
             curl -sf -o /dev/null -H "Authorization: Bearer $token" "localhost:8080/api/$path" && echo "ok /api/$path"
           done
           curl -sf -o /dev/null localhost:8088/oms/login.action && echo "ok legacy OMS"
+          vcb=$(docker compose exec -T postgres psql -U reconhub -d reconhub -tAc "select code from oms.orders where pay_via = 'VCB' limit 1")
+          curl -sf -H "Authorization: Bearer $token" "localhost:8080/api/orders/$vcb/vietqr" | grep -q "\"memo\":\"$vcb\"" && echo "ok /api/orders/$vcb/vietqr"
+          curl -sf -o /dev/null -w "%{content_type}\n" -H "Authorization: Bearer $token" "localhost:8080/api/orders/$vcb/vietqr.png" | grep -q image/png && echo "ok VietQR PNG"
       - name: Logs on failure
         if: failure()
         run: docker compose logs --tail 200
