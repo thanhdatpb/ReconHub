@@ -23,6 +23,10 @@ public interface ExceptionRepository extends JpaRepository<ReconException, Strin
     @Query("select e from ReconException e join e.orders o where o.code = :orderCode and e.type = vn.reconhub.core.domain.Enums.ExceptionType.UNPAID_ORDER and e.status in (vn.reconhub.core.domain.Enums.ExceptionStatus.OPEN, vn.reconhub.core.domain.Enums.ExceptionStatus.IN_REVIEW)")
     List<ReconException> findOpenUnpaid(@Param("orderCode") String orderCode);
 
+    /** Fee differences of a source still waiting for someone (OPEN or IN_REVIEW); a pending write-off is left alone. */
+    @Query("select e from ReconException e where e.sourceCode = :source and e.type = vn.reconhub.core.domain.Enums.ExceptionType.FEE_DIFF and e.status in (vn.reconhub.core.domain.Enums.ExceptionStatus.OPEN, vn.reconhub.core.domain.Enums.ExceptionStatus.IN_REVIEW) order by e.createdAt")
+    List<ReconException> findOpenFeeDiffs(@Param("source") String source);
+
     @Query("select count(e) > 0 from ReconException e join e.payments p where p.id = :lineId")
     boolean existsForLine(@Param("lineId") Long lineId);
 
