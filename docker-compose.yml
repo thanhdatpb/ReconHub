@@ -11,6 +11,12 @@ x-mq: &mq
   ARTEMIS_USER: artemis
   ARTEMIS_PASSWORD: ${ARTEMIS_PASSWORD:-artemis}
 
+# The shop's bank account in VietQR codes (api and legacy OMS). Defaults are sample values: set real ones in .env.
+x-vietqr: &vietqr
+  VIETQR_BIN: ${VIETQR_BIN:-970436}
+  VIETQR_ACCOUNT: ${VIETQR_ACCOUNT:-1234567890}
+  VIETQR_ACCOUNT_NAME: ${VIETQR_ACCOUNT_NAME:-CONG TY TNHH SHOP DEMO}
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -52,7 +58,8 @@ services:
   # Runs once: sample orders, 30 days of partner files and the ground truth for eval_matching.py.
   datagen:
     build: tools/datagen
-    command: ["--out", "/data", "--days", "30"]
+    # DATAGEN_QR_RATE simulates customers paying by VietQR (0-1); 0 keeps the data CI measures.
+    command: ["--out", "/data", "--days", "30", "--qr-rate", "${DATAGEN_QR_RATE:-0}"]
     volumes:
       - data:/data
     restart: "no"
@@ -87,7 +94,7 @@ services:
       context: server
       target: api
     environment:
-      <<: [*db, *mq]
+      <<: [*db, *mq, *vietqr]
       DATA_DIR: /data
       JWT_SECRET: ${JWT_SECRET:-reconhub-dev-secret-change-me-0123456789abcdef}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -113,6 +120,7 @@ services:
   legacy-oms:
     build: legacy-oms
     environment:
+      <<: *vietqr
       CATALINA_OPTS: >-
         -Doms.db.url=jdbc:postgresql://postgres:5432/reconhub
         -Doms.db.user=reconhub

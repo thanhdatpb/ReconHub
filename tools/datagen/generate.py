@@ -6,7 +6,7 @@ transfer description, short payment, unannounced fee change, missing or late pay
 truth.csv records, for every line, the orders it really belongs to, so matching quality can be measured.
 
 Usage:
-    python generate.py --out /data [--today 2026-10-22] [--days 30] [--seed 20261022] [--force]
+    python generate.py --out /data [--today 2026-10-22] [--days 30] [--seed 20261022] [--qr-rate 0.6] [--force]
 """
 from __future__ import annotations
 
@@ -113,8 +113,12 @@ class PartnerFile:
 
 
 class Generator:
-    def __init__(self, today: date, days: int, seed: int):
+    def __init__(self, today: date, days: int, seed: int, qr_rate: float = 0.0):
         self.r = random.Random(seed)
+        # Share of Vietcombank customers who pay by scanning the order's VietQR code (roadmap 2.1). It has its own
+        # random stream, drawn only when the rate is above 0, so the default output stays byte-for-byte the same.
+        self.qr_rate = qr_rate
+        self.qr_r = random.Random(seed + 1)
         self.today = today
         self.now = datetime.combine(today, time(9, 30), TZ)
         self.days = days
@@ -303,7 +307,13 @@ class Generator:
             name = fold(o.customer)
             codes, amount, anomaly = [o.code], o.amount, "NONE"
             ref_col = ""
-            if o.pay_via == "VCB":
+            if o.pay_via == "VCB" and self.paid_by_qr():
+                # The code fixes amount and description; the bank only adds its own prefix to the description.
+                ref = self.qr_r.randint(1_000_000, 9_999_999)
+                desc = self.qr_r.choice([o.code, f"MBVCB.{ref}.{o.code}.CT tu {name}", f"IBFT {o.code}"])
+                anomaly = "VIETQR"
+                values = [txn, f"FT{txn:%y}{txn.timetuple().tm_yday:03d}{self.digits(6)}", amount, desc]
+            elif o.pay_via == "VCB":
                 if roll < 0.10:
                     desc, anomaly = f"{name} chuyen tien", "NO_CODE"
                 elif roll < 0.16:
@@ -346,6 +356,9 @@ class Generator:
             amount = self.r.randint(200, 900) * 1000
             vals = [txn, f"FT{txn:%y}{txn.timetuple().tm_yday:03d}{self.digits(6)}", amount, "HOAN TIEN NCC CONG TY MAY AN PHAT"]
             self.file("VCB", d).lines.append(Line("VCB", vals[1], vals, [], "NO_ORDER"))
+
+    def paid_by_qr(self) -> bool:
+        return self.qr_rate > 0 and self.qr_r.random() < self.qr_rate
 
     def find_same_day_partner(self, o: Order, pool: list[Order], used: set[str]) -> Order | None:
         for other in pool:
@@ -499,7 +512,11 @@ def main() -> None:
     p.add_argument("--days", type=int, default=30)
     p.add_argument("--seed", type=int, default=20261022)
     p.add_argument("--force", action="store_true", help="regenerate even if data already exists")
+    p.add_argument("--qr-rate", type=float, default=0.0,
+                   help="share of Vietcombank customers paying by the order's VietQR code, 0-1 (default 0: today's data)")
     args = p.parse_args()
+    if not 0 <= args.qr_rate <= 1:
+        p.error("--qr-rate must be between 0 and 1")
 
     out = Path(args.out)
     marker = out / ".seeded"
@@ -507,8 +524,9 @@ def main() -> None:
         print(f"Sample data already present in {out} ({marker.read_text().strip()}); use --force to regenerate.")
         return
     today = date.fromisoformat(args.today) if args.today else datetime.now(TZ).date()
-    stats = Generator(today, args.days, args.seed).run(out)
-    marker.write_text(f"generated for {today} with seed {args.seed}\n")
+    stats = Generator(today, args.days, args.seed, args.qr_rate).run(out)
+    qr = f" and VietQR rate {args.qr_rate:g}" if args.qr_rate > 0 else ""
+    marker.write_text(f"generated for {today} with seed {args.seed}{qr}\n")
     print(f"Generated {stats['orders']} orders, {stats['files']} files, {stats['lines']} payment lines into {out}")
     for k, v in sorted(stats["anomalies"].items(), key=lambda kv: -kv[1]):
         print(f"  {k:<22} {v}")

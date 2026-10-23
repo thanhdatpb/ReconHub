@@ -5,7 +5,7 @@ Reads /data/truth/truth.csv and the database, then reports:
 * precision of automatic matches (EXACT, AMOUNT_DATE, MANY_TO_ONE): of the lines the rules matched on their own,
   how many went to exactly the right orders. This is the number that must stay at 100%: a wrong automatic match
   moves money to the wrong customer and nobody looks at it again.
-* automation rate: share of all lines matched correctly without a person.
+* automation rate: share of all lines matched correctly without a person, overall and per source.
 * where each kind of planted anomaly ended up (matched, which exception type, still new).
 
 Usage: python eval_matching.py --truth /data/truth/truth.csv --db postgresql://reconhub:reconhub@localhost:5432/reconhub
@@ -48,6 +48,7 @@ def main() -> int:
         rows = conn.execute(LINES_SQL).fetchall()
 
     auto = correct_auto = 0
+    correct_by_source: Counter = Counter()
     wrong: list[tuple] = []
     outcome_by_anomaly: dict[str, Counter] = defaultdict(Counter)
     seen = set()
@@ -61,6 +62,7 @@ def main() -> int:
             auto += 1
             if orders == expected:
                 correct_auto += 1
+                correct_by_source[t["source"]] += 1
             else:
                 wrong.append((file_name, ref, t["anomaly"], method, orders, expected))
         if status == "MATCHED":
@@ -85,6 +87,9 @@ def main() -> int:
     print(f"  correct:                 {correct_auto}")
     print(f"  precision:               {precision:.2%}")
     print(f"Automation rate:           {correct_auto / with_orders:.2%} of {with_orders} lines that belong to orders")
+    with_orders_by_source = Counter(t["source"] for t in truth.values() if t["true_orders"])
+    for source, n in sorted(with_orders_by_source.items()):
+        print(f"  {source:<23} {correct_by_source[source] / n:.2%} of {n}")
     print()
     print("Outcome by planted anomaly:")
     for anomaly, outcomes in sorted(outcome_by_anomaly.items(), key=lambda kv: -sum(kv[1].values())):

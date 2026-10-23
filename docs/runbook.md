@@ -43,6 +43,22 @@ Unknown names and sources that are not active are moved to `/data/rejected`. The
 3. Upload it on the "Nhận file" screen with source Vietcombank. Within seconds the file is `Đã nạp`, the line is
    matched `EXACT`, and the OMS order page shows "Đã khớp".
 
+## Scan an order's VietQR code with a banking app
+
+The QR is built locally (no outside service) for the account in `.env`. The sample account `1234567890` does not
+exist, so a banking app shows an error for it; to check a real scan, use an account you own.
+
+1. In `.env` set `VIETQR_BIN` (6-digit NAPAS BIN, e.g. `970436` Vietcombank, `970422` MB, `970415` VietinBank),
+   `VIETQR_ACCOUNT` and `VIETQR_ACCOUNT_NAME` (no diacritics). Do not commit `.env`.
+2. `docker compose up -d legacy-oms api` (only the environment changes, no rebuild needed).
+3. Open a VCB order in the legacy OMS (or create one paid via `VCB`): the page shows the QR, BIN, account, amount and
+   the order code as the description. The same code is at `GET /api/orders/{code}/vietqr.png` (accountant or chief
+   accountant token).
+4. Scan it with the banking app's QR scanner. The transfer screen must show your account and holder name (the bank
+   looks the name up), the order amount, and the order code as the description. Cancel without confirming, or confirm a
+   small test order created for the purpose.
+5. Put the sample values back (or remove the three lines) when done.
+
 ## A failed job
 
 1. "Theo dõi batch" lists the failed execution; "AI giải thích" shows the cause and what to do.
@@ -60,7 +76,16 @@ docker compose run --rm --entrypoint python datagen eval_matching.py \
   --truth /data/truth/truth.csv --db postgresql://reconhub:reconhub@postgres:5432/reconhub
 ```
 
-Prints precision of automatic matches, the automation rate and where each planted anomaly ended up.
+Prints precision of automatic matches, the automation rate (overall and per source) and where each planted anomaly
+ended up.
+
+To see what VietQR would change, regenerate the demo with a share of Vietcombank customers paying by the order's code,
+then measure again; reset with `0` afterwards so the data matches CI:
+
+```bash
+docker compose down -v && DATAGEN_QR_RATE=0.6 docker compose up -d   # wait for /data/.backfilled, then eval as above
+docker compose down -v && docker compose up -d                        # back to the default data
+```
 
 ## Turn on the LLM
 

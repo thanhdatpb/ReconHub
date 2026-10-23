@@ -16,6 +16,20 @@
     <s:else><span class="muted">Chưa có tiền về</span></s:else>
   </td></tr>
 </table>
+<s:if test="hasQr">
+<h3>Mã VietQR chuyển khoản</h3>
+<div class="box qr">
+  <img src="<s:url action='orderQr'><s:param name='code' value='order.code'/></s:url>" alt="Mã VietQR đơn <s:property value='order.code'/>" width="270" height="270">
+  <table class="detail">
+    <tr><th>Ngân hàng (BIN)</th><td><s:property value="qrAccount.bin"/></td></tr>
+    <tr><th>Số tài khoản</th><td><s:property value="qrAccount.account"/></td></tr>
+    <tr><th>Chủ tài khoản</th><td><s:property value="qrAccount.accountName"/></td></tr>
+    <tr><th>Số tiền</th><td><s:text name="format.money"><s:param value="order.amount"/></s:text></td></tr>
+    <tr><th>Nội dung</th><td><s:property value="order.code"/></td></tr>
+  </table>
+  <p class="hint">Khách quét bằng app ngân hàng: số tiền và nội dung đã điền sẵn, đừng sửa nội dung để tiền tự khớp với đơn.</p>
+</div>
+</s:if>
 <h3>Cập nhật trạng thái</h3>
 <s:form action="updateStatus" method="post" cssClass="box">
   <s:hidden name="code" value="%{order.code}"/>

@@ -3,6 +3,7 @@ package vn.shop.oms.action;
 import com.opensymphony.xwork2.ActionSupport;
 import vn.shop.oms.db.Db;
 import vn.shop.oms.model.Order;
+import vn.shop.oms.vietqr.QrAccount;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -78,4 +79,7 @@ public class OrderAction extends ActionSupport {
     public List<String> getStatuses() { return STATUSES; }
     public List<String> getChannels() { return CHANNELS; }
     public List<String> getPayVias() { return PAY_VIA; }
+    /** Bank-transfer orders show a VietQR code on their page (see OrderQrAction). */
+    public boolean isHasQr() { return QrAccount.BANK_TRANSFER.equals(order.getPayVia()); }
+    public QrAccount getQrAccount() { return QrAccount.fromEnvironment(); }
 }

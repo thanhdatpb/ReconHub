@@ -22,6 +22,7 @@ public class ReconProperties {
     private final Data data = new Data();
     private final Ai ai = new Ai();
     private final Demo demo = new Demo();
+    private final VietQrAccount vietqr = new VietQrAccount();
 
     public static class Data {
         private Path root = Path.of("/data");
@@ -68,6 +69,22 @@ public class ReconProperties {
         public void setEnabled(boolean enabled) { this.enabled = enabled; }
     }
 
+    /** The shop's bank account that VietQR codes on orders pay into (VIETQR_* in .env). */
+    public static class VietQrAccount {
+        /** NAPAS bank BIN, six digits; 970436 is Vietcombank. */
+        private String bin = "970436";
+        private String account = "1234567890";
+        /** Shown next to the code so the payer can check it; banking apps look the name up themselves. */
+        private String accountName = "CONG TY TNHH SHOP DEMO";
+
+        public String getBin() { return bin; }
+        public void setBin(String bin) { this.bin = bin; }
+        public String getAccount() { return account; }
+        public void setAccount(String account) { this.account = account; }
+        public String getAccountName() { return accountName; }
+        public void setAccountName(String accountName) { this.accountName = accountName; }
+    }
+
     public ZoneId getZone() { return zone; }
     public void setZone(ZoneId zone) { this.zone = zone; }
     public int getSlaHours() { return slaHours; }
@@ -83,4 +100,5 @@ public class ReconProperties {
     public Data getData() { return data; }
     public Ai getAi() { return ai; }
     public Demo getDemo() { return demo; }
+    public VietQrAccount getVietqr() { return vietqr; }
 }
